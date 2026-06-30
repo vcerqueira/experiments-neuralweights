@@ -1,0 +1,8 @@
+neuralforecast==3.1.9
+numpy==2.4.6
+pandas==2.3.3
+python-dotenv==1.2.2
+datasets==5.0.0
+datasetsforecast==1.0.1
+modelradar==0.2.1
+weightwatcher==0.7.7

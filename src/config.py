@@ -1,6 +1,6 @@
 from pathlib import Path
 
-DRY_RUN = False
+DRY_RUN = True
 
 # RESULTS_DIR = Path().resolve().parent.parent / 'hypertuning-files' / 'results-all-compiled'
 # RESULTS_DIR = Path().resolve().parent / 'results'

@@ -37,6 +37,7 @@ if __name__ == '__main__':
     print(results_dir.absolute())
 
     for model_nm in ModelsConfig.model_names:
+        print(model_nm)
         # model = 'NHITS'
 
         config_pool = NEURAL_CONFIG_POOL[model_nm]
@@ -44,22 +45,22 @@ if __name__ == '__main__':
 
         for config_sample in config_list:
             print(config_sample)
+            # config_sample=config_list[0]
+            cfg_id = config_sample.pop('config_id')
 
             # check if no of configs reaches MAX_SAMPLES
-            config_pattern = f"{model_nm},{target}"
-            config_files = list(results_dir.glob(f"{config_pattern},*.csv"))
+            config_pattern = f"{model_nm},{target},{cfg_id}"
+            config_files = list(results_dir.glob(f"{config_pattern},cbs.csv"))
             n_configs = len(config_files)
             if n_configs >= MAX_SAMPLES:
                 print(f"No of configs reached MAX_SAMPLES for {model_nm},{target}")
                 break
 
-            cfg_id = config_sample.pop('config_id')
+            cbs_fp = results_dir / f'{model_nm},{target},{cfg_id},cbs.csv'
+            cbd_fp = results_dir / f'{model_nm},{target},{cfg_id},cbd.csv'
 
-            outer_fp = results_dir / f'{model_nm},{target},{cfg_id},outer.csv'
-            inner_fp = results_dir / f'{model_nm},{target},{cfg_id},inner.csv'
-
-            if outer_fp.exists():
-                print(f"Skipping {model_nm},{target},{cfg_id},outer.csv -- Already exists")
+            if cbs_fp.exists():
+                print(f"Skipping {model_nm},{target},{cfg_id},cbs.csv -- Already exists")
                 continue
 
             print(f"Running config {n_configs} / {MAX_SAMPLES}")
@@ -98,7 +99,7 @@ if __name__ == '__main__':
             radar = ModelRadar(
                 cv_df=holdout_set,
                 metrics=[mase_func],
-                model_names=[model, 'SeasonalNaive'],
+                model_names=[model_nm, 'SeasonalNaive'],
                 train_df=train,
                 hardness_reference='SeasonalNaive',
                 ratios_reference='SeasonalNaive',
@@ -111,9 +112,19 @@ if __name__ == '__main__':
             cb = WeightWatcherCallback.get_cb(nf)
 
             cbs_df = pd.DataFrame(cb.summaries)
+            cbs_df['model'] = model_nm
+            cbs_df['config_id'] = cfg_id
+            cbs_df['dataset'] = target
+            cbs_df['mase'] = err[model_nm]
+            cbs_df['mase_sn'] = err['SeasonalNaive']
+
             cbd_df = pd.concat(cb.details).reset_index(drop=True)
-            # todo adicionar nome do modelo
-            # todo adicionar config id
-            # todo horizon, n_lags, freq, seas_len
+            cbd_df['model'] = model_nm
+            cbd_df['config_id'] = cfg_id
+            cbd_df['dataset'] = target
+            cbd_df['mase'] = err[model_nm]
+            cbd_df['mase_sn'] = err['SeasonalNaive']
 
             ##----- serialization
+            cbs_df.to_csv(cbs_fp, index=False)
+            cbd_df.to_csv(cbd_fp, index=False)

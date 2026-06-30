@@ -6,3 +6,4 @@ datasets==5.0.0
 datasetsforecast==1.0.1
 modelradar==0.2.1
 weightwatcher==0.7.7
+statsforecast==2.0.3

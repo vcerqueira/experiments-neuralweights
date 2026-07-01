@@ -24,7 +24,7 @@ warnings.filterwarnings('ignore')
 os.environ['TUNE_DISABLE_STRICT_METRIC_CHECKING'] = '1'
 
 # ---- data loading and partitioning
-target = 'monash_m1_quarterly'
+target = 'monash_m1_monthly'
 
 train, test, horizon, n_lags, freq, seas_len = load_dataset_splits(target)
 mase_func = partial(mase, seasonality=seas_len)
@@ -49,8 +49,8 @@ if __name__ == '__main__':
             cfg_id = config_sample.pop('config_id')
 
             # check if no of configs reaches MAX_SAMPLES
-            config_pattern = f"{model_nm},{target},{cfg_id}"
-            config_files = list(results_dir.glob(f"{config_pattern},cbs.csv"))
+            config_pattern = f"{model_nm},{target}"
+            config_files = list(results_dir.glob(f"{config_pattern},*cbs.csv"))
             n_configs = len(config_files)
             if n_configs >= MAX_SAMPLES:
                 print(f"No of configs reached MAX_SAMPLES for {model_nm},{target}")

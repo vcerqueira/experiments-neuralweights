@@ -81,6 +81,7 @@ class CatBoostRegressionModel:
 
         self.model_: Optional[CatBoostRegressor] = None
         self.cpd_: Optional[ConformalPredictiveDistribution] = None
+        self.feature_names_: Optional[list[str]] = None
         self.best_params_: dict[str, Any] = {}
         self.best_rmse_: Optional[float] = None
 
@@ -92,6 +93,7 @@ class CatBoostRegressionModel:
             cat_features: Optional[list[Union[int, str]]] = None,
     ) -> "CatBoostRegressionModel":
         X_input, y_arr = self._validate_xy(X, y)
+        self.feature_names_ = self._feature_names(X_input)
 
         if self.conformal:
             X_fit, X_cal, y_fit, y_cal = self._holdout_split(
@@ -138,6 +140,18 @@ class CatBoostRegressionModel:
         self._check_conformal()
         y_hat = self.predict(X)
         return self.cpd_.quantile(y_hat, q)
+
+    def feature_importance(
+        self,
+        importance_type: str = "FeatureImportance",
+    ) -> pd.Series:
+        """Return CatBoost feature importances indexed by input variable name."""
+        self._check_fitted()
+        scores = self.model_.get_feature_importance(type=importance_type)
+        names = self.feature_names_ or self.model_.feature_names_
+        if names is None:
+            names = [f"f{i}" for i in range(len(scores))]
+        return pd.Series(scores, index=names, name=importance_type).sort_values(ascending=False)
 
     def _fit_conformal(
             self,
@@ -250,6 +264,13 @@ class CatBoostRegressionModel:
             'iterations': 904,
             **self.catboost_params,
         }
+
+    @staticmethod
+    def _feature_names(X: ArrayLike) -> list[str]:
+        if isinstance(X, pd.DataFrame):
+            return list(X.columns)
+        n_features = np.asarray(X).shape[1]
+        return [f"f{i}" for i in range(n_features)]
 
     @staticmethod
     def _validate_xy(X: ArrayLike, y: ArrayLike) -> tuple[ArrayLike, np.ndarray]:

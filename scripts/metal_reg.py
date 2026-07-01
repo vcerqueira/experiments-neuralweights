@@ -18,6 +18,8 @@ metadata = read_metadata(data_dir, model_name, dataset_name, detailed=False)
 df_after_train = metadata.query('step==-1').reset_index(drop=True)
 
 # metadata splitting
+
+# todo maybe normalize by mase_sn for comensurability?
 y_reg = df_after_train['mase']
 X = df_after_train.drop(columns=['mase', 'mase_sn', 'model', 'config_id', 'step', 'dataset'])
 

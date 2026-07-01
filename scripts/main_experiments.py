@@ -2,7 +2,6 @@ import os
 import warnings
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from neuralforecast import NeuralForecast
 from modelradar.evaluate.radar import ModelRadar

@@ -24,7 +24,7 @@ warnings.filterwarnings('ignore')
 os.environ['TUNE_DISABLE_STRICT_METRIC_CHECKING'] = '1'
 
 # ---- data loading and partitioning
-target = 'monash_m1_monthly'
+target = 'monash_m3_monthly'
 
 train, test, horizon, n_lags, freq, seas_len = load_dataset_splits(target)
 mase_func = partial(mase, seasonality=seas_len)

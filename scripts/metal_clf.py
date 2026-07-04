@@ -3,16 +3,15 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 
-from src.utils import read_metadata
+from src.utils import read_all_metadata
 from src.algorithms.binary import CatBoostAUCClassifier
 from src.plots import plot_roc_curve
 
 model = 'MLP'
-dataset_name = 'monash_m1_monthly'
 dir = Path('./assets/results')
-plot_path = Path("./assets/outputs") / f"metal_clf_roc_{model}_{dataset_name}.pdf"
+plot_path = Path("./assets/outputs") / f"metal_clf_roc_{model}.pdf"
 
-metadata = read_metadata(dir, model, dataset_name, detailed=False)
+metadata = read_all_metadata(dir, model, detailed=False)
 
 df_after_train = metadata.query('step==-1').reset_index(drop=True)
 
@@ -36,6 +35,6 @@ plot_roc_curve(
     y_ts,
     preds,
     auc,
-    title=f"ROC Curve — {model} / {dataset_name}",
+    title=f"ROC Curve — {model}",
     save_path=plot_path,
 )

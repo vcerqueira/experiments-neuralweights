@@ -14,13 +14,14 @@ plot_path = Path("./assets/outputs") / f"metal_clf_roc_{model}.pdf"
 metadata = read_all_metadata(dir, model, detailed=False)
 
 df_after_train = metadata.query('step==-1').reset_index(drop=True)
+print(df_after_train['dataset'].value_counts())
 
 # metadata splitting
 
 y_clf = (df_after_train['mase'] < df_after_train['mase_sn']).astype(int)
 X = df_after_train.drop(columns=['mase', 'mase_sn', 'model', 'config_id', 'step', 'dataset'])
 
-X_tr, X_ts, y_tr, y_ts = train_test_split(X, y_clf, test_size=0.2)
+X_tr, X_ts, y_tr, y_ts = train_test_split(X, y_clf, test_size=0.3)
 
 # modeling
 

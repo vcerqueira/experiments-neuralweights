@@ -2,7 +2,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_absolute_error as mae, roc_auc_score
+from sklearn.metrics import (mean_absolute_error as mae,
+                             roc_auc_score,
+                             log_loss,
+                             brier_score_loss)
 from sklearn.model_selection import LeaveOneGroupOut
 
 from src.utils import read_all_metadata
@@ -13,7 +16,7 @@ model_name = 'MLP'
 data_dir = Path('./assets/results')
 plot_path = Path("./assets/outputs") / f"metal_reg_importance_{model_name}_logo.pdf"
 target_dataset = 'monash_m3_monthly'
-PERFORMANCE_DIFF = False
+PERFORMANCE_DIFF = True
 
 if PERFORMANCE_DIFF:
     y_clip_min, y_clip_max = -2.5, 2.5
@@ -63,12 +66,16 @@ for train_idx, test_idx in logo.split(X, y_reg, groups):
     pred_exc = reg.prob_exceeds(X.iloc[test_idx], thr)
 
     auc_exc = roc_auc_score(y_exc_bin, pred_exc)
+    ll_exc = log_loss(y_exc_bin, pred_exc)
+    brier_exc = brier_score_loss(y_exc_bin, pred_exc)
 
     fold_results[held_out] = (y_ts, preds, pred_exc)
     fold_metrics.append({
         'dataset': held_out,
         'nmae': nmae_fold,
         'auc_exc': auc_exc,
+        'll_exc': ll_exc,
+        'brier_exc': brier_exc,
     })
     print(f"{held_out}: nMAE = {nmae_fold:.3f}, exceedance AUC = {auc_exc:.3f}")
 
@@ -79,7 +86,7 @@ nmae = mae(y_all, preds_all) / mae(y_all, baseline_all)
 print(f"\nOverall LOO-dataset nMAE = {nmae:.3f}")
 
 metrics_df = pd.DataFrame(fold_metrics)
-print(metrics_df[['nmae', 'auc_exc']].agg(['mean', 'std']))
+print(metrics_df[['nmae', 'auc_exc', 'll_exc', 'brier_exc']].agg(['mean', 'std']))
 
 if target_dataset in fold_results:
     y_m3, preds_m3, pred_exc_m3 = fold_results[target_dataset]

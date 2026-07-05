@@ -2,7 +2,10 @@ from pathlib import Path
 
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error as mae, roc_auc_score
+from sklearn.metrics import (mean_absolute_error as mae,
+                             roc_auc_score,
+                             log_loss,
+                             brier_score_loss)
 
 from src.utils import read_metadata
 from src.algorithms import CatBoostRegressionModel
@@ -47,6 +50,8 @@ y_exc_bin = (y_ts > thr).astype(int)
 pred_exc = model.prob_exceeds(X_ts, thr)
 
 auc_exc = roc_auc_score(y_exc_bin, pred_exc)
+ll_exc = log_loss(y_exc_bin, pred_exc)
+brier_exc = brier_score_loss(y_exc_bin, pred_exc)
 print(auc_exc)
 
 

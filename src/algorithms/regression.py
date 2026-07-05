@@ -6,8 +6,14 @@ import numpy as np
 import optuna
 import pandas as pd
 from catboost import CatBoostRegressor
+from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
+
+from typing import Literal
+
+CalibrationMethod = Literal["isotonic", "platt", "none"]
 
 ArrayLike = Union[pd.DataFrame, pd.Series, np.ndarray]
 
@@ -61,6 +67,7 @@ class CatBoostRegressionModel:
             *,
             optimize: bool = False,
             conformal: bool = False,
+            calibration_method: CalibrationMethod = "isotonic",
             n_trials: int = 50,
             val_size: float = 0.2,
             conformal_cal_size: float = 0.2,
@@ -71,6 +78,7 @@ class CatBoostRegressionModel:
     ):
         self.optimize = optimize
         self.conformal = conformal
+        self.calibration_method = calibration_method
         self.n_trials = n_trials
         self.val_size = val_size
         self.conformal_cal_size = conformal_cal_size
@@ -84,6 +92,9 @@ class CatBoostRegressionModel:
         self.feature_names_: Optional[list[str]] = None
         self.best_params_: dict[str, Any] = {}
         self.best_rmse_: Optional[float] = None
+        self._X_cal: Optional[ArrayLike] = None
+        self._y_cal: Optional[np.ndarray] = None
+        self._calibrators: dict[float, Any] = {}
 
     def fit(
             self,
@@ -116,6 +127,9 @@ class CatBoostRegressionModel:
         if self.conformal:
             assert X_cal is not None and y_cal is not None
             self.cpd_ = self._fit_conformal(X_cal, y_cal, cat_features=cat_features)
+            self._X_cal = X_cal
+            self._y_cal = y_cal
+            self._calibrators = {}
 
         return self
 
@@ -123,11 +137,63 @@ class CatBoostRegressionModel:
         self._check_fitted()
         return self.model_.predict(self._validate_x(X))
 
-    def prob_exceeds(self, X: ArrayLike, threshold: float) -> np.ndarray:
-        """P(Y > threshold | X) from the conformal predictive distribution."""
+    def prob_exceeds(
+        self,
+        X: ArrayLike,
+        threshold: float,
+        *,
+        calibration_method: Optional[CalibrationMethod] = None,
+    ) -> np.ndarray:
+        """P(Y > threshold | X) from the conformal predictive distribution.
+        
+        Args:
+            X: Features to predict on.
+            threshold: Value above which to compute exceedance probability.
+            calibration_method: Override calibration method ("isotonic", "platt", "none").
+                Defaults to self.calibration_method.
+        """
         self._check_conformal()
         y_hat = self.predict(X)
-        return self.cpd_.prob_exceeds(y_hat, threshold)
+        raw_probs = self.cpd_.prob_exceeds(y_hat, threshold)
+
+        method = calibration_method if calibration_method is not None else self.calibration_method
+        if method == "none":
+            return raw_probs
+
+        calibrator = self._get_or_fit_calibrator(threshold, method)
+        return self._apply_calibrator(calibrator, raw_probs, method)
+
+    def _get_or_fit_calibrator(
+        self, threshold: float, method: CalibrationMethod
+    ) -> Any:
+        """Fit or retrieve a calibrator for the given threshold and method."""
+        key = (threshold, method)
+        if key not in self._calibrators:
+            y_hat_cal = self.model_.predict(self._X_cal)
+            raw_probs_cal = self.cpd_.prob_exceeds(y_hat_cal, threshold)
+            y_exc_cal = (self._y_cal > threshold).astype(int)
+
+            if method == "isotonic":
+                calibrator = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds='clip')
+                calibrator.fit(raw_probs_cal, y_exc_cal)
+            elif method == "platt":
+                calibrator = LogisticRegression(C=1e10, solver='lbfgs', max_iter=1000)
+                calibrator.fit(raw_probs_cal.reshape(-1, 1), y_exc_cal)
+            else:
+                raise ValueError(f"Unknown calibration method: {method}")
+
+            self._calibrators[key] = calibrator
+
+        return self._calibrators[key]
+
+    @staticmethod
+    def _apply_calibrator(calibrator: Any, probs: np.ndarray, method: CalibrationMethod) -> np.ndarray:
+        """Apply a fitted calibrator to raw probabilities."""
+        if method == "isotonic":
+            return calibrator.predict(probs)
+        elif method == "platt":
+            return calibrator.predict_proba(probs.reshape(-1, 1))[:, 1]
+        return probs
 
     def predict_cdf(self, X: ArrayLike, y_grid: ArrayLike) -> np.ndarray:
         """Predictive CDF evaluated on `y_grid` for each row in X."""

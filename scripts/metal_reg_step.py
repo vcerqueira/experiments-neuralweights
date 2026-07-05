@@ -17,7 +17,7 @@ plot_path = Path('./assets/outputs') / f'metal_reg_step_{model_name}.pdf'
 PERFORMANCE_DIFF = True
 
 if PERFORMANCE_DIFF:
-    y_clip_min, y_clip_max = -2.5, 2.5
+    y_clip_min, y_clip_max = -5, 5
 else:
     y_clip_min, y_clip_max = 0, 5
 
@@ -63,12 +63,12 @@ def run_logo_cv_for_step(
         y_tr = np.clip(y_reg.iloc[train_idx], a_min=y_clip_min, a_max=y_clip_max)
         y_ts = y_reg.iloc[test_idx].to_numpy()
 
-        reg = CatBoostRegressionModel(conformal=True)
+        reg = CatBoostRegressionModel(conformal=True, calibration_method="isotonic")
         reg.fit(X.iloc[train_idx], y_tr)
 
         preds = reg.predict(X.iloc[test_idx])
         y_baseline = np.repeat(np.mean(y_tr), len(y_ts))
-        y_baseline_b = np.repeat(0.5, len(y_ts))
+        y_baseline_prob = np.repeat(0.5, len(y_ts))
 
         y_true_folds.append(y_ts)
         pred_folds.append(preds)
@@ -76,11 +76,11 @@ def run_logo_cv_for_step(
 
         thr = 0 if performance_diff else mase_sn_by_dataset[held_out]
         y_exc_bin = (y_ts > thr).astype(int)
-        pred_exc = reg.prob_exceeds(X.iloc[test_idx], thr)
+        pred_exc = reg.prob_exceeds(X.iloc[test_idx], thr, calibration_method="isotonic")
 
         fold_ll.append(log_loss(y_exc_bin, pred_exc))
         fold_bs.append(brier_score_loss(y_exc_bin, pred_exc))
-        fold_bs_bl.append(brier_score_loss(y_exc_bin, y_baseline_b))
+        fold_bs_bl.append(brier_score_loss(y_exc_bin, y_baseline_prob))
         fold_aucs.append(roc_auc_score(y_exc_bin, pred_exc))
 
     y_all = np.concatenate(y_true_folds)

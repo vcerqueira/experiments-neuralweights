@@ -1,0 +1,100 @@
+from typing import Optional
+
+import numpy as np
+import pandas as pd
+import weightwatcher as ww
+from pytorch_lightning.callbacks import Callback
+
+from src.algorithms import CatBoostRegressionModel
+from src.config import CB_N_STEPS
+
+
+class MetaModelEarlyStopCallback(Callback):
+    """Early stopping callback based on meta-model exceedance probability predictions.
+
+    Uses a pre-trained meta-model to predict P(MASE > MASE_baseline) from
+    WeightWatcher features during training. Stops if probability exceeds threshold.
+    """
+
+    MIN_STEPS_BEFORE_STOPPING = 50
+
+    def __init__(
+            self,
+            meta_model: CatBoostRegressionModel,
+            feature_columns: list[str],
+            stopping_threshold: float = 0.5,
+            exceedance_threshold: float = 0.0,
+            every_n_steps: int = CB_N_STEPS,
+            min_steps: int = MIN_STEPS_BEFORE_STOPPING,
+            verbose: bool = True,
+    ):
+        super().__init__()
+        self.name = 'meta_early_stop'
+        self.meta_model = meta_model
+        self.feature_columns = feature_columns
+        self.stopping_threshold = stopping_threshold
+        self.exceedance_threshold = exceedance_threshold
+        self.every_n_steps = every_n_steps
+        self.min_steps = min_steps
+        self.verbose = verbose
+
+        self.predictions: list[dict] = []
+        self.stopped_early: bool = False
+        self.stop_step: Optional[int] = None
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        step = trainer.global_step
+
+        if step < self.min_steps:
+            return
+
+        if step % self.every_n_steps != 0:
+            return
+
+        features = self._extract_features(pl_module, step)
+        if features is None:
+            return
+
+        prob_exceed = self._predict_exceedance(features)
+
+        self.predictions.append({
+            'step': step,
+            'prob_exceed': prob_exceed,
+            'threshold': self.stopping_threshold,
+        })
+
+        if self.verbose:
+            print(f"  [Step {step}] P(exceed) = {prob_exceed:.3f}", end="")
+
+        if prob_exceed > self.stopping_threshold:
+            if self.verbose:
+                print(f" > {self.stopping_threshold} -> STOPPING EARLY")
+            trainer.should_stop = True
+            self.stopped_early = True
+            self.stop_step = step
+        elif self.verbose:
+            print()
+
+    def _extract_features(self, pl_module, step: int) -> Optional[pd.DataFrame]:
+        """Extract WeightWatcher features from the model."""
+        try:
+            watcher = ww.WeightWatcher(model=pl_module)
+            details = watcher.analyze(plot=False)
+            summary = watcher.get_summary(details)
+            summary['step'] = step
+
+            features_dict = {col: summary.get(col, np.nan) for col in self.feature_columns}
+            return pd.DataFrame([features_dict])
+        except Exception as e:
+            if self.verbose:
+                print(f"  [Step {step}] Feature extraction failed: {e}")
+            return None
+
+    def _predict_exceedance(self, features: pd.DataFrame) -> float:
+        """Predict probability of exceeding baseline performance."""
+        prob = self.meta_model.prob_exceeds(
+            features[self.feature_columns],
+            self.exceedance_threshold,
+            calibration_method="isotonic",
+        )
+        return float(prob[0])

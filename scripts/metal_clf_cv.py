@@ -10,12 +10,13 @@ from src.algorithms.binary import CatBoostAUCClassifier
 from src.plots import plot_roc_curve
 
 model = 'MLP'
-dir = Path('./assets/results')
+data_dir = Path('./assets/results')
 plot_path = Path("./assets/outputs") / f"metal_clf_roc_{model}_logo.pdf"
 plot_path_m3 = Path("./assets/outputs") / f"metal_clf_roc_{model}_monash_m3_monthly_logo.pdf"
 target_dataset = 'monash_m3_monthly'
 
-metadata = read_all_metadata(dir, model, detailed=False)
+# metadata = read_all_metadata(data_dir, model, detailed=False)
+metadata = pd.read_csv('./assets/metadata.csv')
 
 df_after_train = metadata.sample(50000).reset_index(drop=True)
 # df_after_train = metadata.query('step==-1').reset_index(drop=True)
@@ -24,6 +25,10 @@ print(df_after_train['dataset'].value_counts())
 y_clf = (df_after_train['mase'] < df_after_train['mase_sn']).astype(int)
 groups = df_after_train['dataset']
 X = df_after_train.drop(columns=['mase', 'mase_sn', 'model', 'config_id', 'step', 'dataset'])
+
+object_cols = X.select_dtypes(include=['object']).columns.tolist()
+for col in object_cols:
+    X[col] = X[col].astype('category').cat.codes
 
 logo = LeaveOneGroupOut()
 y_true_folds: list[np.ndarray] = []

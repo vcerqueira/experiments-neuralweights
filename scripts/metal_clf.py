@@ -8,10 +8,10 @@ from src.algorithms.binary import CatBoostAUCClassifier
 from src.plots import plot_roc_curve
 
 model = 'MLP'
-dir = Path('./assets/results')
+data_dir = Path('./assets/results')
 plot_path = Path("./assets/outputs") / f"metal_clf_roc_{model}.pdf"
 
-metadata = read_all_metadata(dir, model, detailed=False)
+metadata = read_all_metadata(data_dir, model, detailed=False)
 
 df_after_train = metadata.query('step==-1').reset_index(drop=True)
 print(df_after_train['dataset'].value_counts())

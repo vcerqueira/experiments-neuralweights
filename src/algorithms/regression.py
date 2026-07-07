@@ -152,11 +152,11 @@ class CatBoostRegressionModel:
         return self.model_.predict(self._validate_x(X))
 
     def prob_exceeds(
-        self,
-        X: ArrayLike,
-        threshold: float,
-        *,
-        calibration_method: Optional[CalibrationMethod] = None,
+            self,
+            X: ArrayLike,
+            threshold: float,
+            *,
+            calibration_method: Optional[CalibrationMethod] = None,
     ) -> np.ndarray:
         """P(Y > threshold | X) from the conformal predictive distribution.
         
@@ -178,15 +178,13 @@ class CatBoostRegressionModel:
         return self._apply_calibrator(calibrator, raw_probs, method)
 
     def _get_or_fit_calibrator(
-        self, threshold: float, method: CalibrationMethod
+            self, threshold: float, method: CalibrationMethod
     ) -> Any:
         """Fit or retrieve a calibrator for the given threshold and method."""
         key = (threshold, method)
         if key not in self._calibrators:
             y_hat_cal = self.model_.predict(self._X_cal)
             raw_probs_cal = self.cpd_.prob_exceeds(y_hat_cal, threshold)
-            print(raw_probs_cal)
-            print(self._y_cal)
             y_exc_cal = (self._y_cal > threshold).astype(int)
 
             if method == "isotonic":
@@ -224,8 +222,8 @@ class CatBoostRegressionModel:
         return self.cpd_.quantile(y_hat, q)
 
     def feature_importance(
-        self,
-        importance_type: str = "FeatureImportance",
+            self,
+            importance_type: str = "FeatureImportance",
     ) -> pd.Series:
         """Return CatBoost feature importances indexed by input variable name."""
         self._check_fitted()

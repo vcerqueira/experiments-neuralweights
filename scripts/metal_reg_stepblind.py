@@ -24,7 +24,12 @@ if PERFORMANCE_DIFF:
 else:
     y_clip_min, y_clip_max = 0, 5
 
-metadata = read_all_metadata(data_dir, model_name, detailed=False)
+# metadata = read_all_metadata(data_dir, model_name, detailed=False)
+metadata = pd.read_csv('./assets/metadata.csv')
+object_cols = metadata.select_dtypes(include=['object']).columns.tolist()
+for col in object_cols:
+    metadata[col] = metadata[col].astype('category').cat.codes
+
 
 # metadata = metadata.query('step > 300')
 df_after_train = metadata.sample(100000).reset_index(drop=True)

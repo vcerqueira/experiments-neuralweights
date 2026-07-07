@@ -29,7 +29,6 @@ train, test, horizon, n_lags, freq, seas_len = load_dataset_splits(target)
 mase_func = partial(mase, seasonality=seas_len)
 
 results_dir = Path('../assets/results')
-# results_dir = Path().resolve().parent.parent / 'hypertuning-files' / 'results-all-compiled'
 
 
 if __name__ == '__main__':

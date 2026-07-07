@@ -21,15 +21,21 @@ from src.early_stopping import MetaModelEarlyStopCallback
 
 warnings.filterwarnings('ignore')
 
-STOPPING_THRESHOLD = 0.80
+STOPPING_THRESHOLD = 0.70
 N_TRIALS = 10
 CB_N_STEPS = 100
 
 data_dir = Path('./assets/results')
 model_name = 'MLP'
 
-metadata = read_all_metadata(data_dir, model_name, detailed=False)
-df_after_train = metadata.sample(30000).reset_index(drop=True)
+# metadata = read_all_metadata(data_dir, model_name, detailed=False)
+metadata = pd.read_csv('./assets/metadata.csv')
+object_cols = metadata.select_dtypes(include=['object']).columns.tolist()
+for col in object_cols:
+    metadata[col] = metadata[col].astype('category').cat.codes
+
+
+df_after_train = metadata.sample(50000).reset_index(drop=True)
 
 target_dataset = 'monash_m1_monthly'
 
@@ -80,7 +86,7 @@ def train_meta_model(
 train_full, train, valid, test, horizon, n_lags, freq, seas_len = load_dataset_splits(target_dataset, get_valid=True)
 mase_func = partial(mase, seasonality=seas_len)
 
-meta_model, feature_columns = train_meta_model(meta_train)
+meta_model, feature_columns = train_meta_model(meta_train, conformal_cal_size=0.025)
 
 config_pool = NEURAL_CONFIG_POOL[model_name]
 config_list = ConfigSampler.generate_samples(

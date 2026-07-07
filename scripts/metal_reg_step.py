@@ -21,7 +21,14 @@ if PERFORMANCE_DIFF:
 else:
     y_clip_min, y_clip_max = 0, 5
 
-metadata = read_all_metadata(data_dir, model_name, detailed=False)
+# metadata = read_all_metadata(data_dir, model_name, detailed=False)
+metadata = pd.read_csv('./assets/metadata.csv')
+object_cols = metadata.select_dtypes(include=['object']).columns.tolist()
+for col in object_cols:
+    metadata[col] = metadata[col].astype('category').cat.codes
+
+# df_after_train = metadata.sample(50000).reset_index(drop=True)
+
 mase_sn_by_dataset = metadata.query('step==-1').groupby('dataset')['mase_sn'].first()
 
 steps = np.linspace(start=0, stop=1000, num=11).astype(int).tolist()
@@ -123,4 +130,7 @@ for step in steps:
     print(f"  nMAE = {metrics['nmae']:.3f}, exceedance AUC = {metrics['auc_exc_mean']:.3f}")
 
 results_df = pd.DataFrame(results)
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+
 print('\n', results_df)

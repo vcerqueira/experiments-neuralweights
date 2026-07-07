@@ -29,7 +29,12 @@ CB_N_STEPS = 100
 data_dir = Path('./assets/results')
 model_name = 'MLP'
 
-metadata = read_all_metadata(data_dir, model_name, detailed=False)
+# metadata = read_all_metadata(data_dir, model_name, detailed=False)
+metadata = pd.read_csv('./assets/metadata.csv')
+object_cols = metadata.select_dtypes(include=['object']).columns.tolist()
+for col in object_cols:
+    metadata[col] = metadata[col].astype('category').cat.codes
+
 
 target_dataset = 'monash_m3_monthly'
 

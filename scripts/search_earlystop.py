@@ -10,6 +10,7 @@ from statsforecast import StatsForecast
 from statsforecast.models import SeasonalNaive
 from utilsforecast.losses import mase
 from functools import partial
+from sklearn.metrics import roc_auc_score, log_loss
 
 from src.algorithms import CatBoostRegressionModel
 from src.config import N_SAMPLES, SEED, TRY_MPS, MAX_SAMPLES
@@ -77,7 +78,8 @@ def train_meta_model(
         conformal_cal_size=conformal_cal_size,
         calibration_method="isotonic",
     )
-    reg.fit(X, y_reg, calibrate_threshold=0.0)
+    # reg.fit(X, y_reg, calibrate_threshold=0.0)
+    reg.fit(X, y_reg, calibrate_threshold=None)
 
     print(f"Meta-model trained with {len(feature_cols)} features")
     return reg, feature_cols
@@ -169,4 +171,7 @@ results_df = pd.DataFrame(search_results)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-results_df
+print(roc_auc_score(results_df['status'], results_df['final_prob_exceed']))
+print(log_loss(results_df['status'], results_df['final_prob_exceed']))
+
+print(results_df)

@@ -91,10 +91,28 @@ class MetaModelEarlyStopCallback(Callback):
             return None
 
     def _predict_exceedance(self, features: pd.DataFrame) -> float:
-        """Predict probability of exceeding baseline performance."""
+        """Predict probability of exceeding baseline performance.
+        
+        Uses raw conformal probabilities (no calibration) for speed.
+        For early stopping, ranking accuracy matters more than calibration.
+        """
         prob = self.meta_model.prob_exceeds(
             features[self.feature_columns],
             self.exceedance_threshold,
-            calibration_method="isotonic",
+            calibration_method="none",
+            # calibration_method="isotonic",
         )
         return float(prob[0])
+
+    @staticmethod
+    def get_cb(nf) -> "MetaModelEarlyStopCallback":
+        """Retrieve the actual callback instance from a fitted NeuralForecast model.
+        
+        NeuralForecast deep-copies callbacks, so the original instance won't have
+        the updated state. Use this method to get the actual callback after fitting.
+        """
+        all_cbs = nf.models[0].trainer_kwargs.get('callbacks', [])
+        for cb in all_cbs:
+            if getattr(cb, 'name', None) == 'meta_early_stop':
+                return cb
+        raise ValueError("MetaModelEarlyStopCallback not found in model callbacks")

@@ -1,13 +1,14 @@
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (mean_absolute_error as mae,
                              roc_auc_score,
                              log_loss,
                              brier_score_loss)
 
-from src.utils import read_metadata
+from src.utils import read_metadata, corr_coef
 from src.algorithms import CatBoostRegressionModel
 from src.plots import plot_feature_importance
 
@@ -43,6 +44,7 @@ mae_score_bl = mae(y_ts, y_baseline)
 mae_score = mae(y_ts, preds)
 nmae = mae_score / mae_score_bl
 print(nmae)
+print(corr_coef(y_ts, preds))
 
 thr = mase_sn_by_dataset[dataset_name]
 y_exc_bin = (y_ts > thr).astype(int)

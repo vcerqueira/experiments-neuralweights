@@ -8,7 +8,7 @@ from sklearn.metrics import (mean_absolute_error as mae,
                              brier_score_loss)
 from sklearn.model_selection import LeaveOneGroupOut
 
-from src.utils import read_all_metadata
+from src.utils import read_all_metadata, corr_coef
 from src.algorithms import CatBoostRegressionModel
 from src.plots import plot_feature_importance, plot_calibration_curve
 
@@ -64,6 +64,8 @@ for train_idx, test_idx in logo.split(X, y_reg, groups):
     baseline_folds.append(y_baseline)
 
     nmae_fold = mae(y_ts, preds) / mae(y_ts, y_baseline)
+    cc_k = corr_coef(y_ts, preds, 'kendall')
+    cc_s = corr_coef(y_ts, preds, 'spearman')
 
     thr = 0 if PERFORMANCE_DIFF else mase_sn_by_dataset[held_out]
     y_exc_bin = (y_ts > thr).astype(int)
@@ -88,6 +90,8 @@ for train_idx, test_idx in logo.split(X, y_reg, groups):
     fold_metrics.append({
         'dataset': held_out,
         'nmae': nmae_fold,
+        'kendall': cc_k,
+        'spearman': cc_s,
         'auc_exc': auc_exc,
         'll_raw': ll_raw,
         'll_iso': ll_iso,
@@ -107,7 +111,9 @@ print(f"\nOverall LOO-dataset nMAE = {nmae:.3f}")
 
 metrics_df = pd.DataFrame(fold_metrics)
 print("\n--- Metrics Summary (mean ± std) ---")
-summary_cols = ['nmae', 'auc_exc', 'll_raw', 'll_iso', 'll_platt', 'brier_raw', 'brier_iso', 'brier_platt']
+summary_cols = ['nmae', 'auc_exc', 'kendall', 'spearman', 'll_raw', 'll_iso',
+                'll_platt', 'brier_raw', 'brier_iso',
+                'brier_platt']
 print(metrics_df[summary_cols].agg(['mean', 'std']).T)
 
 exc_true_all = np.concatenate(exc_true_folds)

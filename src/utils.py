@@ -5,17 +5,27 @@ import pandas as pd
 from src.loaders import ChronosDataset, LongHorizonDatasetR
 
 
-def load_dataset_splits(target):
+def load_dataset_splits(target, get_valid: bool = False):
     if target in ChronosDataset.FREQUENCY_MAP_DATASETS:
         df, horizon, n_lags, freq, seas_len = ChronosDataset.load_everything(target)
-        train, test = ChronosDataset.time_wise_split(df, horizon)
+
     else:
         df, horizon, n_lags, freq, seas_len = LongHorizonDatasetR.load_everything(
             target, resample_to='D'
         )
-        train, test = ChronosDataset.time_wise_split(df, horizon)
 
-    return train, test, horizon, n_lags, freq, seas_len
+    df = ChronosDataset.prune_uids_by_size(df, min_n_instances=2 * (n_lags + horizon))
+    train, test = ChronosDataset.time_wise_split(df, horizon)
+
+    if get_valid:
+        train_in, valid = ChronosDataset.time_wise_split(train, horizon)
+    else:
+        train_in = train
+        valid = pd.DataFrame()
+
+    df = ChronosDataset.prune_uids_by_size(train_in, min_n_instances=2 * (n_lags + horizon))
+
+    return train_in, valid, test, horizon, n_lags, freq, seas_len
 
 
 class MetadataReader:
@@ -87,3 +97,9 @@ def read_metadata(data_dir, model, dataset_name, detailed=False):
 
 def read_all_metadata(data_dir, model, detailed=False):
     return MetadataReader(data_dir, model, detailed).read_all()
+
+
+def corr_coef(y_true, y_pred, method='spearman'):
+    cc = pd.DataFrame({'t': y_true, 'p': y_pred}).corr(method).values[0, 1]
+
+    return cc

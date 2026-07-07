@@ -8,7 +8,7 @@ from sklearn.metrics import (mean_absolute_error as mae,
                              brier_score_loss)
 from sklearn.model_selection import LeaveOneGroupOut
 
-from src.utils import read_all_metadata
+from src.utils import read_all_metadata, corr_coef
 from src.algorithms import CatBoostRegressionModel
 
 model_name = 'MLP'
@@ -57,6 +57,8 @@ def run_logo_cv_for_step(
     fold_ll: list[float] = []
     fold_bs: list[float] = []
     fold_bs_bl: list[float] = []
+    fold_ccs: list[float] = []
+    fold_cck: list[float] = []
 
     for train_idx, test_idx in logo.split(X, y_reg, groups):
         held_out = groups.iloc[test_idx[0]]
@@ -78,19 +80,27 @@ def run_logo_cv_for_step(
         y_exc_bin = (y_ts > thr).astype(int)
         pred_exc = reg.prob_exceeds(X.iloc[test_idx], thr, calibration_method="isotonic")
 
+        cc_k = corr_coef(y_ts, preds, 'kendall')
+        cc_s = corr_coef(y_ts, preds, 'spearman')
+
         fold_ll.append(log_loss(y_exc_bin, pred_exc))
         fold_bs.append(brier_score_loss(y_exc_bin, pred_exc))
         fold_bs_bl.append(brier_score_loss(y_exc_bin, y_baseline_prob))
         fold_aucs.append(roc_auc_score(y_exc_bin, pred_exc))
+        fold_ccs.append(cc_s)
+        fold_cck.append(cc_k)
 
     y_all = np.concatenate(y_true_folds)
     preds_all = np.concatenate(pred_folds)
     baseline_all = np.concatenate(baseline_folds)
     nmae = mae(y_all, preds_all) / mae(y_all, baseline_all)
 
+
     return {
         'step': step,
         'nmae': nmae,
+        'spearman': np.mean(fold_ccs),
+        'kendall': np.mean(fold_cck),
         'brier': np.mean(fold_bs),
         'brier_bl': np.mean(fold_bs_bl),
         'll': np.mean(fold_ll),

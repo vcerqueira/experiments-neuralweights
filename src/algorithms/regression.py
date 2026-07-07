@@ -175,10 +175,10 @@ class CatBoostRegressionModel:
 
             if method == "isotonic":
                 calibrator = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds='clip')
-                calibrator.fit(raw_probs_cal, y_exc_cal)
+                calibrator.fit(raw_probs_cal[:3000], y_exc_cal[:3000])
             elif method == "platt":
                 calibrator = LogisticRegression(C=1e10, solver='lbfgs', max_iter=1000)
-                calibrator.fit(raw_probs_cal.reshape(-1, 1), y_exc_cal)
+                calibrator.fit(raw_probs_cal.reshape(-1, 1)[:3000], y_exc_cal[:3000])
             else:
                 raise ValueError(f"Unknown calibration method: {method}")
 

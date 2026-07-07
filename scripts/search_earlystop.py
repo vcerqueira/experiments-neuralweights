@@ -1,19 +1,7 @@
-"""
-Random search with meta-model based early stopping.
-
-This script implements uncertainty-aware early stopping for HPO:
-1. Train a meta-model on historical data (excluding target dataset) using LOO
-2. During training, predict P(MASE > MASE_baseline) using WeightWatcher features
-3. If P > threshold, stop training early and move to next configuration
-
-This enables efficient HPO by avoiding full training of likely-poor configurations.
-"""
 from __future__ import annotations
 
-import os
 import warnings
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -24,7 +12,7 @@ from utilsforecast.losses import mase
 from functools import partial
 
 from src.algorithms import CatBoostRegressionModel
-from src.config import N_SAMPLES, SEED, TRY_MPS, MAX_SAMPLES, CB_N_STEPS
+from src.config import N_SAMPLES, SEED, TRY_MPS, MAX_SAMPLES
 from src.neural.config_pool import NEURAL_CONFIG_POOL
 from src.neural.nf_arch import ModelsConfig
 from src.neural.param_samples import ConfigSampler
@@ -33,8 +21,9 @@ from src.early_stopping import MetaModelEarlyStopCallback
 
 warnings.filterwarnings('ignore')
 
-EXCEEDANCE_THRESHOLD = 0.75
+STOPPING_THRESHOLD = 0.80
 N_TRIALS = 10
+CB_N_STEPS = 50
 
 data_dir = Path('./assets/results')
 model_name = 'MLP'
@@ -88,7 +77,7 @@ def train_meta_model(
     return reg, feature_cols
 
 
-train, test, horizon, n_lags, freq, seas_len = load_dataset_splits(target_dataset)
+train, valid, test, horizon, n_lags, freq, seas_len = load_dataset_splits(target_dataset, get_valid=True)
 mase_func = partial(mase, seasonality=seas_len)
 
 meta_model, feature_columns = train_meta_model(meta_train)
@@ -99,6 +88,13 @@ config_list = ConfigSampler.generate_samples(
     num_samples=N_SAMPLES,
     random_state=SEED,
 )
+
+sf = StatsForecast(models=[SeasonalNaive(season_length=seas_len)], freq=freq)
+sf.fit(train)
+fcst_sf = sf.predict(h=horizon)
+fcst_sf['ds'] = valid['ds']
+holdout = valid.merge(fcst_sf, how='left', on=['unique_id', 'ds'])
+mase_sn = mase_func(holdout, models=['SeasonalNaive'], train_df=train).mean(numeric_only=True)['SeasonalNaive']
 
 search_results = []
 configs_tried = 0
@@ -113,10 +109,10 @@ for config_sample in config_list:
     early_stop_cb = MetaModelEarlyStopCallback(
         meta_model=meta_model,
         feature_columns=feature_columns,
-        stopping_threshold=0.6,
+        stopping_threshold=STOPPING_THRESHOLD,
         exceedance_threshold=0.0,
         every_n_steps=CB_N_STEPS,
-        min_steps=50,
+        min_steps=30,
         verbose=True,
     )
 
@@ -129,50 +125,43 @@ for config_sample in config_list:
         callbacks=[early_stop_cb],
     )
 
-    sf = StatsForecast(models=[SeasonalNaive(season_length=seas_len)], freq=freq)
-
     nf = NeuralForecast(models=[model], freq=freq)
-    sf.fit(train)
+    nf.fit(df=train)
 
-    try:
-        nf.fit(df=train)
-    except Exception as e:
-        print(f"  Training failed: {e}")
-        continue
+    actual_cb = MetaModelEarlyStopCallback.get_cb(nf)
 
-    fcst_sf = sf.predict(h=horizon)
     fcst = nf.predict()
-    fcst['ds'] = test['ds']
-    fcst_sf['ds'] = test['ds']
+    fcst['ds'] = valid['ds']
 
-    holdout = test.merge(fcst, how='left', on=['unique_id', 'ds'])
-    holdout = holdout.merge(fcst_sf, how='left', on=['unique_id', 'ds'])
+    holdout = valid.merge(fcst, how='left', on=['unique_id', 'ds'])
 
-    mase_model = mase_func(holdout, models=[model_name])
-    mase_sn = mase_func(holdout, models=['SeasonalNaive'])
+    mase_model = mase_func(holdout, models=[model_name], train_df=train)
 
     result = {
         'config_id': cfg_id,
         'dataset': target_dataset,
         'model': model_name,
         'mase': float(mase_model[model_name].mean()),
-        'mase_sn': float(mase_sn['SeasonalNaive'].mean()),
-        'stopped_early': early_stop_cb.stopped_early,
-        'stop_step': early_stop_cb.stop_step,
-        'n_predictions': len(early_stop_cb.predictions),
+        'stopped_early': actual_cb.stopped_early,
+        'stop_step': actual_cb.stop_step,
+        'n_predictions': len(actual_cb.predictions),
     }
 
-    if early_stop_cb.predictions:
-        result['final_prob_exceed'] = early_stop_cb.predictions[-1]['prob_exceed']
+    if actual_cb.predictions:
+        result['final_prob_exceed'] = actual_cb.predictions[-1]['prob_exceed']
     else:
         result['final_prob_exceed'] = np.nan
 
     search_results.append(result)
+    # del early_stop_cb
 
-    exceeds_baseline = result['mase'] > result['mase_sn']
+    exceeds_baseline = result['mase'] > mase_sn
     status = "WORSE" if exceeds_baseline else "BETTER"
-    early_str = f" (stopped @ step {result['stop_step']})" if result['stopped_early'] else ""
-
-    pd.DataFrame([result]).to_csv(result_fp, index=False)
+    result['status'] = status
 
 results_df = pd.DataFrame(search_results)
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+
+results_df

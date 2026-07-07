@@ -102,7 +102,18 @@ class CatBoostRegressionModel:
             y: ArrayLike,
             *,
             cat_features: Optional[list[Union[int, str]]] = None,
+            calibrate_threshold: Optional[float] = None,
     ) -> "CatBoostRegressionModel":
+        """Fit the model.
+        
+        Args:
+            X: Features.
+            y: Target values.
+            cat_features: List of categorical feature indices or names.
+            calibrate_threshold: If provided and conformal=True, pre-fit the
+                probability calibrator for this threshold. This avoids expensive
+                lazy fitting during inference.
+        """
         X_input, y_arr = self._validate_xy(X, y)
         self.feature_names_ = self._feature_names(X_input)
 
@@ -130,6 +141,9 @@ class CatBoostRegressionModel:
             self._X_cal = X_cal
             self._y_cal = y_cal
             self._calibrators = {}
+
+            if calibrate_threshold is not None:
+                self._get_or_fit_calibrator(calibrate_threshold, self.calibration_method)
 
         return self
 
@@ -171,14 +185,16 @@ class CatBoostRegressionModel:
         if key not in self._calibrators:
             y_hat_cal = self.model_.predict(self._X_cal)
             raw_probs_cal = self.cpd_.prob_exceeds(y_hat_cal, threshold)
+            print(raw_probs_cal)
+            print(self._y_cal)
             y_exc_cal = (self._y_cal > threshold).astype(int)
 
             if method == "isotonic":
                 calibrator = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds='clip')
-                calibrator.fit(raw_probs_cal[:3000], y_exc_cal[:3000])
+                calibrator.fit(raw_probs_cal, y_exc_cal)
             elif method == "platt":
                 calibrator = LogisticRegression(C=1e10, solver='lbfgs', max_iter=1000)
-                calibrator.fit(raw_probs_cal.reshape(-1, 1)[:3000], y_exc_cal[:3000])
+                calibrator.fit(raw_probs_cal.reshape(-1, 1), y_exc_cal)
             else:
                 raise ValueError(f"Unknown calibration method: {method}")
 

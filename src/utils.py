@@ -15,17 +15,18 @@ def load_dataset_splits(target, get_valid: bool = False):
         )
 
     df = ChronosDataset.prune_uids_by_size(df, min_n_instances=2 * (n_lags + horizon))
-    train, test = ChronosDataset.time_wise_split(df, horizon)
+    train_full, test = ChronosDataset.time_wise_split(df, horizon)
 
     if get_valid:
-        train_in, valid = ChronosDataset.time_wise_split(train, horizon)
+        train_in, valid = ChronosDataset.time_wise_split(train_full, horizon)
     else:
-        train_in = train
+        train_in = train_full
         valid = pd.DataFrame()
 
-    df = ChronosDataset.prune_uids_by_size(train_in, min_n_instances=2 * (n_lags + horizon))
+    train_in = ChronosDataset.prune_uids_by_size(train_in, min_n_instances=2 * (n_lags + horizon))
+    train_full = ChronosDataset.prune_uids_by_size(train_full, min_n_instances=2 * (n_lags + horizon))
 
-    return train_in, valid, test, horizon, n_lags, freq, seas_len
+    return train_full, train_in, valid, test, horizon, n_lags, freq, seas_len
 
 
 class MetadataReader:

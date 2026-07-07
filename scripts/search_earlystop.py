@@ -23,22 +23,22 @@ warnings.filterwarnings('ignore')
 
 STOPPING_THRESHOLD = 0.80
 N_TRIALS = 10
-CB_N_STEPS = 50
+CB_N_STEPS = 100
 
 data_dir = Path('./assets/results')
 model_name = 'MLP'
 
 metadata = read_all_metadata(data_dir, model_name, detailed=False)
-df_after_train = metadata.sample(100000).reset_index(drop=True)
+df_after_train = metadata.sample(30000).reset_index(drop=True)
 
-target_dataset = 'monash_tourism_monthly'
+target_dataset = 'monash_m1_monthly'
 
 meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
 
 
 def train_meta_model(
         meta_train,
-        conformal_cal_size: float = 0.3,
+        conformal_cal_size: float = 0.1,
         y_clip: tuple[float, float] = (-2.5, 2.5),
 ) -> tuple[CatBoostRegressionModel, list[str]]:
     """Train meta-model on all datasets except the target (LOO).
@@ -61,7 +61,7 @@ def train_meta_model(
         col for col in meta_train.columns
         if col not in ['mase', 'mase_sn',
                        'model', 'config_id',
-                       'step',
+                       #'step',
                        'dataset']
     ]
     X = meta_train[feature_cols]
@@ -71,13 +71,13 @@ def train_meta_model(
         conformal_cal_size=conformal_cal_size,
         calibration_method="isotonic",
     )
-    reg.fit(X, y_reg)
+    reg.fit(X, y_reg, calibrate_threshold=0.0)
 
     print(f"Meta-model trained with {len(feature_cols)} features")
     return reg, feature_cols
 
 
-train, valid, test, horizon, n_lags, freq, seas_len = load_dataset_splits(target_dataset, get_valid=True)
+train_full, train, valid, test, horizon, n_lags, freq, seas_len = load_dataset_splits(target_dataset, get_valid=True)
 mase_func = partial(mase, seasonality=seas_len)
 
 meta_model, feature_columns = train_meta_model(meta_train)
@@ -153,7 +153,6 @@ for config_sample in config_list:
         result['final_prob_exceed'] = np.nan
 
     search_results.append(result)
-    # del early_stop_cb
 
     exceeds_baseline = result['mase'] > mase_sn
     status = "WORSE" if exceeds_baseline else "BETTER"

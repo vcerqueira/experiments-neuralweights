@@ -30,13 +30,23 @@ data_dir = Path('./assets/results')
 model_name = 'MLP'
 
 # metadata = read_all_metadata(data_dir, model_name, detailed=False)
-metadata = pd.read_csv('./assets/metadata.csv')
+# metadata = pd.read_csv('./assets/metadata.csv')
+# object_cols = metadata.select_dtypes(include=['object']).columns.tolist()
+# for col in object_cols:
+#     metadata[col] = metadata[col].astype('category').cat.codes
+
+metadata = pd.read_csv('./assets/metadata.csv').drop(columns=['log_norm.1','scaler_type'])
+# metadata['scaler_type'] = metadata['scaler_type'].fillna("None")
+
 object_cols = metadata.select_dtypes(include=['object']).columns.tolist()
+category_mappings: dict[str, dict[str, int]] = {}
 for col in object_cols:
-    metadata[col] = metadata[col].astype('category').cat.codes
+    cat_type = metadata[col].astype('category')
+    category_mappings[col] = {v: i for i, v in enumerate(cat_type.cat.categories)}
+    metadata[col] = cat_type.cat.codes
 
 
-target_dataset = 'monash_m3_monthly'
+target_dataset = 'monash_m1_monthly'
 
 meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
 
@@ -119,6 +129,8 @@ for config_sample in config_list:
         every_n_steps=CB_N_STEPS,
         min_steps=30,
         verbose=True,
+        config_data=config_sample,
+        category_mappings=category_mappings,
     )
 
     model = ModelsConfig.create_model_instance(

@@ -1,4 +1,5 @@
-from typing import Optional, Union
+from pprint import pprint
+from typing import Optional, Union, Dict, Any
 
 import numpy as np
 import pandas as pd
@@ -7,6 +8,7 @@ from pytorch_lightning.callbacks import Callback
 
 from src.algorithms import CatBoostRegressionModel, CatBoostAUCClassifier
 from src.config import CB_N_STEPS
+from src.ww_feature_engineering import NeuralWeightsFeatureEng
 
 
 class MetaModelEarlyStopCallback(Callback):
@@ -22,11 +24,13 @@ class MetaModelEarlyStopCallback(Callback):
             self,
             meta_model: CatBoostRegressionModel,
             feature_columns: list[str],
+            config_data: Dict[str, Any],
             stopping_threshold: float = 0.5,
             exceedance_threshold: float = 0.0,
             every_n_steps: int = CB_N_STEPS,
             min_steps: int = MIN_STEPS_BEFORE_STOPPING,
             verbose: bool = True,
+            category_mappings: Optional[Dict[str, Dict[str, int]]] = None,
     ):
         super().__init__()
         self.name = 'meta_early_stop'
@@ -37,6 +41,8 @@ class MetaModelEarlyStopCallback(Callback):
         self.every_n_steps = every_n_steps
         self.min_steps = min_steps
         self.verbose = verbose
+        self.config_data = config_data
+        self.category_mappings = category_mappings or {}
 
         self.predictions: list[dict] = []
         self.stopped_early: bool = False
@@ -76,6 +82,40 @@ class MetaModelEarlyStopCallback(Callback):
             print()
 
     def _extract_features(self, pl_module, step: int) -> Optional[pd.DataFrame]:
+        """Extract WeightWatcher features from the model."""
+        try:
+            watcher = ww.WeightWatcher(model=pl_module)
+            details = watcher.analyze(plot=False)
+
+            smr_stats = NeuralWeightsFeatureEng.snapshop_detail_stats(details, add_performance=False)
+            smr_stats['step'] = step
+
+            for k, v in self.config_data.items():
+                if k == 'scaler_type' and v is None:
+                    smr_stats[k] = 'none'
+                smr_stats[k] = v
+
+            smr_stats['learning_rate'] = NeuralWeightsFeatureEng.bin_learning_rate(smr_stats['learning_rate'])
+            smr_stats['start_padding_enabled'] = int(smr_stats['start_padding_enabled'])
+
+            features_dict = {col: smr_stats.get(col, np.nan) for col in self.feature_columns}
+
+            for col, mapping in self.category_mappings.items():
+                if col in features_dict and features_dict[col] in mapping:
+                    features_dict[col] = mapping[features_dict[col]]
+                elif col in features_dict and isinstance(features_dict[col], str):
+                    features_dict[col] = -1
+
+            features_df = pd.DataFrame([features_dict])
+            print(features_df)
+
+            return features_df
+        except Exception as e:
+            if self.verbose:
+                print(f"  [Step {step}] Feature extraction failed: {e}")
+            return None
+
+    def _extract_features_old(self, pl_module, step: int) -> Optional[pd.DataFrame]:
         """Extract WeightWatcher features from the model."""
         try:
             watcher = ww.WeightWatcher(model=pl_module)
@@ -134,6 +174,8 @@ class ClassifierEarlyStopCallback(Callback):
             self,
             meta_classifier: CatBoostAUCClassifier,
             feature_columns: list[str],
+            config_data: Dict,
+            category_mappings,
             stopping_threshold: float = 0.5,
             every_n_steps: int = CB_N_STEPS,
             min_steps: int = MIN_STEPS_BEFORE_STOPPING,
@@ -147,6 +189,8 @@ class ClassifierEarlyStopCallback(Callback):
         self.every_n_steps = every_n_steps
         self.min_steps = min_steps
         self.verbose = verbose
+        self.config_data = config_data
+        self.category_mappings=category_mappings
 
         self.predictions: list[dict] = []
         self.stopped_early: bool = False
@@ -190,11 +234,30 @@ class ClassifierEarlyStopCallback(Callback):
         try:
             watcher = ww.WeightWatcher(model=pl_module)
             details = watcher.analyze(plot=False)
-            summary = watcher.get_summary(details)
-            summary['step'] = step
 
-            features_dict = {col: summary.get(col, np.nan) for col in self.feature_columns}
-            return pd.DataFrame([features_dict])
+            smr_stats = NeuralWeightsFeatureEng.snapshop_detail_stats(details, add_performance=False)
+            smr_stats['step'] = step
+
+            for k, v in self.config_data.items():
+                if k == 'scaler_type' and v is None:
+                    smr_stats[k] = 'none'
+                smr_stats[k] = v
+
+            smr_stats['learning_rate'] = NeuralWeightsFeatureEng.bin_learning_rate(smr_stats['learning_rate'])
+            smr_stats['start_padding_enabled'] = int(smr_stats['start_padding_enabled'])
+
+            features_dict = {col: smr_stats.get(col, np.nan) for col in self.feature_columns}
+
+            for col, mapping in self.category_mappings.items():
+                if col in features_dict and features_dict[col] in mapping:
+                    features_dict[col] = mapping[features_dict[col]]
+                elif col in features_dict and isinstance(features_dict[col], str):
+                    features_dict[col] = -1
+
+            features_df = pd.DataFrame([features_dict])
+            print(features_df)
+
+            return features_df
         except Exception as e:
             if self.verbose:
                 print(f"  [Step {step}] Feature extraction failed: {e}")

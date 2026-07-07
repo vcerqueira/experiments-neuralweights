@@ -29,16 +29,23 @@ CB_N_STEPS = 100
 data_dir = Path('./assets/results')
 model_name = 'MLP'
 
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+
 # metadata = read_all_metadata(data_dir, model_name, detailed=False)
-metadata = pd.read_csv('./assets/metadata.csv')
+metadata = pd.read_csv('./assets/metadata.csv').drop(columns=['log_norm.1','scaler_type'])
+# metadata['scaler_type'] = metadata['scaler_type'].fillna("None")
+
 object_cols = metadata.select_dtypes(include=['object']).columns.tolist()
+category_mappings: dict[str, dict[str, int]] = {}
 for col in object_cols:
-    metadata[col] = metadata[col].astype('category').cat.codes
+    cat_type = metadata[col].astype('category')
+    category_mappings[col] = {v: i for i, v in enumerate(cat_type.cat.categories)}
+    metadata[col] = cat_type.cat.codes
 
+# df_after_train = metadata.sample(20000).reset_index(drop=True)
 
-df_after_train = metadata.sample(50000).reset_index(drop=True)
-
-target_dataset = 'monash_m1_monthly'
+target_dataset = 'monash_m3_quarterly'
 
 meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
 
@@ -68,7 +75,7 @@ def train_meta_model(
         col for col in meta_train.columns
         if col not in ['mase', 'mase_sn',
                        'model', 'config_id',
-                       #'step',
+                       # 'step',
                        'dataset']
     ]
     X = meta_train[feature_cols]
@@ -111,6 +118,8 @@ for config_sample in config_list:
         break
 
     cfg_id = config_sample.pop('config_id')
+    # if config_sample['scaler_type'] is None:
+    #     config_sample['scaler_type'] = 'none'
 
     configs_tried += 1
 
@@ -122,6 +131,8 @@ for config_sample in config_list:
         every_n_steps=CB_N_STEPS,
         min_steps=30,
         verbose=True,
+        config_data=config_sample,
+        category_mappings=category_mappings,
     )
 
     model = ModelsConfig.create_model_instance(
@@ -167,9 +178,6 @@ for config_sample in config_list:
     result['status'] = status
 
 results_df = pd.DataFrame(search_results)
-
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
 
 print(roc_auc_score(results_df['status'], results_df['final_prob_exceed']))
 print(log_loss(results_df['status'], results_df['final_prob_exceed']))

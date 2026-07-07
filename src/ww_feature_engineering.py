@@ -14,7 +14,7 @@ class NeuralWeightsFeatureEng:
         "lambda_max",
         "log_alpha_norm",
         "log_spectral_norm",
-        "log_norm",
+        # "log_norm",
         "norm",
         "stable_rank",
         # "mp_softrank",
@@ -37,14 +37,15 @@ class NeuralWeightsFeatureEng:
     ]
 
     @classmethod
-    def snapshop_detail_stats(cls, df):
+    def snapshop_detail_stats(cls, df, add_performance: bool=True):
         df = cls.pre_feature_engineering(df)
 
         stats = df[cls.stats_metrics].mean()
         # stats['config_id'] = df['config_id'].values[0]
         # stats['step'] = df['step'].values[0]
-        stats['mase'] = df['mase'].values[0]
-        stats['mase_sn'] = df['mase_sn'].values[0]
+        if add_performance:
+            stats['mase'] = df['mase'].values[0]
+            stats['mase_sn'] = df['mase_sn'].values[0]
 
         # df[stats_metrics].std()
         return stats

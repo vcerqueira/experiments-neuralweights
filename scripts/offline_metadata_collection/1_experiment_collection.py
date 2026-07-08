@@ -15,7 +15,6 @@ from src.config import N_SAMPLES, SEED, TRY_MPS, MAX_SAMPLES, CB_N_STEPS
 from src.neural.config_pool import NEURAL_CONFIG_POOL
 from src.neural.param_samples import ConfigSampler
 from src.ww import WeightWatcherCallback
-
 from src.utils import load_dataset_splits
 
 warnings.filterwarnings('ignore')
@@ -28,7 +27,7 @@ target = 'monash_m1_monthly'
 train, test, horizon, n_lags, freq, seas_len = load_dataset_splits(target)
 mase_func = partial(mase, seasonality=seas_len)
 
-results_dir = Path('../assets/results')
+results_dir = Path('../../assets/results')
 
 
 if __name__ == '__main__':

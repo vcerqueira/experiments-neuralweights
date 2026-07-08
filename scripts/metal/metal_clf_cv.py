@@ -18,7 +18,7 @@ target_dataset = 'monash_m3_monthly'
 # metadata = read_all_metadata(data_dir, model, detailed=False)
 metadata = pd.read_csv('./assets/metadata.csv')
 
-df_after_train = metadata.sample(50000).reset_index(drop=True)
+df_after_train = metadata.sample(100000).reset_index(drop=True)
 # df_after_train = metadata.query('step==-1').reset_index(drop=True)
 print(df_after_train['dataset'].value_counts())
 

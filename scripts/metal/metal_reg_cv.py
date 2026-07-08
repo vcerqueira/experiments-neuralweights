@@ -16,6 +16,8 @@ model = 'MLP'
 data_dir = Path('./assets/results')
 plot_path = Path("./assets/outputs") / f"metal_reg_importance_{model}_logo.pdf"
 PERFORMANCE_DIFF = True
+Y_CLIP = (-2.5, 2.5)
+# Y_CLIP = (0, 4)
 
 metadata = read_all_metadata(
     './assets', model,
@@ -27,7 +29,7 @@ data = build_meta_xy(metadata,
                      task="regression",
                      use_step_as_feature=True,
                      performance_diff=PERFORMANCE_DIFF,
-                     y_clip=(-2.5, 2.5))
+                     y_clip=Y_CLIP)
 
 X = data.X
 y = data.y
@@ -35,9 +37,6 @@ groups = data.groups
 mase_sn_by_dataset = data.mase_sn_by_dataset
 
 logo = LeaveOneGroupOut()
-y_true_folds: list[np.ndarray] = []
-pred_folds: list[np.ndarray] = []
-baseline_folds: list[np.ndarray] = []
 exc_true_folds: list[np.ndarray] = []
 exc_raw_folds: list[np.ndarray] = []
 exc_isotonic_folds: list[np.ndarray] = []
@@ -55,10 +54,6 @@ for train_idx, test_idx in logo.split(X, y, groups):
 
     preds = reg.predict(X.iloc[test_idx])
     y_baseline = np.repeat(np.mean(y_tr), len(y_ts))
-
-    y_true_folds.append(y_ts)
-    pred_folds.append(preds)
-    baseline_folds.append(y_baseline)
 
     nmae_fold = mae(y_ts, preds) / mae(y_ts, y_baseline)
     cc_k = corr_coef(y_ts, preds, 'kendall')
@@ -100,11 +95,6 @@ for train_idx, test_idx in logo.split(X, y, groups):
     print(f"{held_out}: nMAE={nmae_fold:.3f}, AUC={auc_exc:.3f}, "
           f"LL(raw/iso/platt)={ll_raw:.3f}/{ll_iso:.3f}/{ll_platt:.3f}")
 
-y_all = np.concatenate(y_true_folds)
-preds_all = np.concatenate(pred_folds)
-baseline_all = np.concatenate(baseline_folds)
-nmae = mae(y_all, preds_all) / mae(y_all, baseline_all)
-print(f"\nOverall LOO-dataset nMAE = {nmae:.3f}")
 
 metrics_df = pd.DataFrame(fold_metrics)
 print("\n--- Metrics Summary (mean ± std) ---")

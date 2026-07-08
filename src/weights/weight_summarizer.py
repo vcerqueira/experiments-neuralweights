@@ -14,7 +14,6 @@ class NeuralWeightsFeatureEng:
         "lambda_max",
         "log_alpha_norm",
         "log_spectral_norm",
-        # "log_norm",
         "norm",
         "stable_rank",
         # "mp_softrank",

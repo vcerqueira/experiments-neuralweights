@@ -282,3 +282,25 @@ class CatBoostAUCClassifier:
     def _check_fitted(self) -> None:
         if self.model_ is None:
             raise RuntimeError("Call fit before predict or predict_proba.")
+
+    def feature_importance(
+        self,
+        importance_type: str = "FeatureImportance",
+    ) -> pd.Series:
+        """Return CatBoost feature importances indexed by feature name.
+        
+        Args:
+            importance_type: Type of feature importance to compute. Options:
+                - "FeatureImportance" (default): Based on loss change
+                - "ShapValues": SHAP-based importance (slower)
+                - "PredictionValuesChange": Average prediction change
+        
+        Returns:
+            Series with feature importances sorted descending.
+        """
+        self._check_fitted()
+        scores = self.model_.get_feature_importance(type=importance_type)
+        names = self.model_.feature_names_
+        if names is None:
+            names = [f"f{i}" for i in range(len(scores))]
+        return pd.Series(scores, index=names, name=importance_type).sort_values(ascending=False)

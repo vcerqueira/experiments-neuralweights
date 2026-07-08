@@ -1,5 +1,4 @@
-from pprint import pprint
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Dict, Any
 
 import numpy as np
 import pandas as pd
@@ -8,7 +7,7 @@ from pytorch_lightning.callbacks import Callback
 
 from src.algorithms import CatBoostRegressionModel, CatBoostAUCClassifier
 from src.config import CB_N_STEPS
-from src.ww_feature_engineering import NeuralWeightsFeatureEng
+from src.weights.weight_summarizer import NeuralWeightsFeatureEng
 
 
 class MetaModelEarlyStopCallback(Callback):

@@ -43,6 +43,7 @@ class ChronosDataset(DatasetLoader):
 
     SPECIAL_HORIZON_MAP = {
         'monash_m1_monthly': 6,  # time series are too short for 12 or 18
+        'monash_car_parts': 6,  # time series are too short for 12 or 18
         'monash_m1_quarterly': 2,  # time series are too short for 4
         'monash_m1_yearly': 2,  # time series are too short for 2
     }

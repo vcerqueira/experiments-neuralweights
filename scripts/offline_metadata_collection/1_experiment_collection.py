@@ -14,7 +14,7 @@ from src.neural.nf_arch import ModelsConfig
 from src.config import N_SAMPLES, SEED, TRY_MPS, MAX_SAMPLES, CB_N_STEPS
 from src.neural.config_pool import NEURAL_CONFIG_POOL
 from src.neural.param_samples import ConfigSampler
-from src.ww import WeightWatcherCallback
+from src.weights.watcher_callback import WeightWatcherCallback
 from src.utils import load_dataset_splits
 
 warnings.filterwarnings('ignore')

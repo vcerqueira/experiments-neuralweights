@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from src.utils import read_all_metadata
-from src.ww_feature_engineering import NeuralWeightsFeatureEng
+from src.weights.weight_summarizer import NeuralWeightsFeatureEng
 
 model = 'MLP'
 data_dir = Path('./assets/results')

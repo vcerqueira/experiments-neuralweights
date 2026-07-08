@@ -54,10 +54,10 @@ if __name__ == '__main__':
                 print(f"No of configs reached MAX_SAMPLES for {model_nm},{target}")
                 break
 
-            cbs_fp = results_dir / f'{model_nm},{target},{cfg_id},cbs.csv'
+            # cbs_fp = results_dir / f'{model_nm},{target},{cfg_id},cbs.csv'
             cbd_fp = results_dir / f'{model_nm},{target},{cfg_id},cbd.csv'
 
-            if cbs_fp.exists():
+            if cbd_fp.exists():
                 print(f"Skipping {model_nm},{target},{cfg_id},cbs.csv -- Already exists")
                 continue
 
@@ -109,12 +109,12 @@ if __name__ == '__main__':
 
             cb = WeightWatcherCallback.get_cb(nf)
 
-            cbs_df = pd.DataFrame(cb.summaries)
-            cbs_df['model'] = model_nm
-            cbs_df['config_id'] = cfg_id
-            cbs_df['dataset'] = target
-            cbs_df['mase'] = err[model_nm]
-            cbs_df['mase_sn'] = err['SeasonalNaive']
+            # cbs_df = pd.DataFrame(cb.summaries)
+            # cbs_df['model'] = model_nm
+            # cbs_df['config_id'] = cfg_id
+            # cbs_df['dataset'] = target
+            # cbs_df['mase'] = err[model_nm]
+            # cbs_df['mase_sn'] = err['SeasonalNaive']
 
             cbd_df = pd.concat(cb.details).reset_index(drop=True)
             cbd_df['model'] = model_nm
@@ -124,5 +124,5 @@ if __name__ == '__main__':
             cbd_df['mase_sn'] = err['SeasonalNaive']
 
             ##----- serialization
-            cbs_df.to_csv(cbs_fp, index=False)
+            # cbs_df.to_csv(cbs_fp, index=False)
             cbd_df.to_csv(cbd_fp, index=False)

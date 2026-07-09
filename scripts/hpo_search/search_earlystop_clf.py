@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import warnings
-from pathlib import Path
 from functools import partial
 
 import numpy as np
@@ -17,7 +16,7 @@ from src.config import N_SAMPLES, SEED, TRY_MPS
 from src.neural.config_pool import NEURAL_CONFIG_POOL
 from src.neural.nf_arch import ModelsConfig
 from src.neural.param_samples import ConfigSampler
-from src.utils import load_dataset_splits, read_all_metadata
+from src.utils import read_all_metadata, build_meta_xy, load_dataset_splits
 from src.early_stopping import ClassifierEarlyStopCallback
 
 warnings.filterwarnings('ignore')
@@ -26,33 +25,18 @@ STOPPING_THRESHOLD = 0.70
 N_TRIALS = 10
 CB_N_STEPS = 100
 
-data_dir = Path('./assets/results')
-model_name = 'MLP'
+model = 'MLP'
 
-# metadata = read_all_metadata(data_dir, model_name, detailed=False)
-# metadata = pd.read_csv('./assets/metadata.csv')
-# object_cols = metadata.select_dtypes(include=['object']).columns.tolist()
-# for col in object_cols:
-#     metadata[col] = metadata[col].astype('category').cat.codes
-
-metadata = pd.read_csv('./assets/metadata.csv').drop(columns=['log_norm.1','scaler_type'])
-# metadata['scaler_type'] = metadata['scaler_type'].fillna("None")
-
-object_cols = metadata.select_dtypes(include=['object']).columns.tolist()
-category_mappings: dict[str, dict[str, int]] = {}
-for col in object_cols:
-    cat_type = metadata[col].astype('category')
-    category_mappings[col] = {v: i for i, v in enumerate(cat_type.cat.categories)}
-    metadata[col] = cat_type.cat.codes
-
-
-target_dataset = 'monash_m1_monthly'
-
-meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
+metadata = read_all_metadata(
+    './assets',
+    model,
+    processed_file=f'./assets/metadata_{model}.csv',
+    sample_n=100000
+)
 
 
 def train_meta_classifier(
-        meta_train: pd.DataFrame,
+        df: pd.DataFrame,
         calibrate: bool = True,
         cal_size: float = 0.2,
 ) -> tuple[CatBoostAUCClassifier, list[str]]:
@@ -66,27 +50,21 @@ def train_meta_classifier(
     Returns:
         Trained CatBoostAUCClassifier and list of feature column names.
     """
-    y_binary = (meta_train['mase'] > meta_train['mase_sn']).astype(int)
-
-    feature_cols = [
-        col for col in meta_train.columns
-        if col not in ['mase', 'mase_sn',
-                       'model', 'config_id',
-                       'dataset']
-    ]
-    X = meta_train[feature_cols]
+    data = build_meta_xy(df, task="classification", use_step_as_feature=True)
 
     clf = CatBoostAUCClassifier(
         calibrate=calibrate,
-        calibration_method="isotonic",
+        calibration_method="platt",
         cal_size=cal_size,
     )
-    clf.fit(X, y_binary)
+    clf.fit(data.X, data.y)
 
-    print(f"Meta-classifier trained with {len(feature_cols)} features")
-    print(f"  Class distribution: {y_binary.mean():.1%} exceeds baseline")
-    return clf, feature_cols
+    print(f"Meta-classifier trained with {len(data.feature_columns)} features")
+    return clf, data.feature_columns
 
+
+target_dataset = 'monash_m1_monthly'
+meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
 
 train_full, train, valid, test, horizon, n_lags, freq, seas_len = load_dataset_splits(
     target_dataset, get_valid=True
@@ -95,7 +73,7 @@ mase_func = partial(mase, seasonality=seas_len)
 
 meta_classifier, feature_columns = train_meta_classifier(meta_train, calibrate=True)
 
-config_pool = NEURAL_CONFIG_POOL[model_name]
+config_pool = NEURAL_CONFIG_POOL[model]
 config_list = ConfigSampler.generate_samples(
     config_pool=config_pool,
     num_samples=N_SAMPLES,
@@ -108,11 +86,10 @@ fcst_sf = sf.predict(h=horizon)
 fcst_sf['ds'] = valid['ds']
 holdout = valid.merge(fcst_sf, how='left', on=['unique_id', 'ds'])
 mase_sn = mase_func(holdout, models=['SeasonalNaive'], train_df=train).mean(numeric_only=True)['SeasonalNaive']
-print(f"Baseline MASE (SeasonalNaive): {mase_sn:.4f}")
+print(f"Baseline validation MASE (SeasonalNaive): {mase_sn:.4f}")
 
 search_results = []
 configs_tried = 0
-
 for config_sample in config_list:
     if configs_tried >= N_TRIALS:
         break
@@ -122,6 +99,7 @@ for config_sample in config_list:
 
     print(f"\n[Config {configs_tried}/{N_TRIALS}] {cfg_id}")
 
+    # todo align cb feature extraction
     early_stop_cb = ClassifierEarlyStopCallback(
         meta_classifier=meta_classifier,
         feature_columns=feature_columns,
@@ -134,7 +112,7 @@ for config_sample in config_list:
     )
 
     model = ModelsConfig.create_model_instance(
-        model_class=model_name,
+        model_class=model,
         model_config=config_sample.copy(),
         horizon=horizon,
         input_size=n_lags,
@@ -142,7 +120,17 @@ for config_sample in config_list:
         callbacks=[early_stop_cb],
     )
 
-    nf = NeuralForecast(models=[model], freq=freq)
+    model_no_cb = ModelsConfig.create_model_instance(
+        model_class=model,
+        model_config=config_sample.copy(),
+        horizon=horizon,
+        input_size=n_lags,
+        try_mps=TRY_MPS,
+        callbacks=[early_stop_cb],
+        alias=f'{model}-NoCB'
+    )
+
+    nf = NeuralForecast(models=[model, model_no_cb], freq=freq)
     nf.fit(df=train)
 
     actual_cb = ClassifierEarlyStopCallback.get_cb(nf)
@@ -152,14 +140,15 @@ for config_sample in config_list:
 
     holdout = valid.merge(fcst, how='left', on=['unique_id', 'ds'])
 
-    mase_model = mase_func(holdout, models=[model_name], train_df=train)
+    mase_model = mase_func(holdout, models=[model], train_df=train)
 
     result = {
         'config_id': cfg_id,
         'dataset': target_dataset,
-        'model': model_name,
-        'mase': float(mase_model[model_name].mean()),
-        'mase_sn': mase_sn,
+        'model': model,
+        'valid_mase_cb': float(mase_model[model].mean()),
+        'valid_mase_nocb': float(mase_model[f'{model}-NoCB'].mean()),
+        'valid_mase_sn': mase_sn,
         'stopped_early': actual_cb.stopped_early,
         'stop_step': actual_cb.stop_step,
         'n_predictions': len(actual_cb.predictions),
@@ -189,3 +178,5 @@ print(roc_auc_score(results_df['status'], results_df['final_prob_exceed']))
 print(log_loss(results_df['status'], results_df['final_prob_exceed']))
 
 print(results_df)
+
+# todo retrain best

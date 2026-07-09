@@ -67,7 +67,8 @@ class ModelsConfig:
                               try_mps: bool = True,
                               limit_epochs: bool = False,
                               limit_val_batches: Optional[int] = None,
-                              callbacks: Optional[List] = None,):
+                              callbacks: Optional[List] = None,
+                              alias: Optional[str] = None,):
 
         accelerator = 'mps' if try_mps else 'cpu'
 
@@ -91,6 +92,9 @@ class ModelsConfig:
 
         if callbacks is not None:
             config['callbacks'] = callbacks
+
+        if alias is not None:
+            config['alias'] = alias
 
         model_instance = cls.MODEL_CLASSES[model_class](**config)
 

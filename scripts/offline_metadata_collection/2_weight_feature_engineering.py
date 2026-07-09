@@ -21,4 +21,4 @@ metadata = read_all_metadata(data_dir, model, detailed=True)
 metadata_smr = NeuralWeightsFeatureEng.summarise_detail_df(metadata, model='MLP')
 metadata_smr['step'] = metadata_smr['step'].astype(int)
 
-metadata_smr.to_csv('assets/metadata.csv', index=False)
+metadata_smr.to_csv(f'assets/metadata_{model}.csv', index=False)

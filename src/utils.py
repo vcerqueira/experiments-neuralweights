@@ -266,7 +266,8 @@ class MetadataReader:
             if not dataset_names:
                 return pd.DataFrame()
             df = pd.concat(
-                [self.read(dataset_name) for dataset_name in dataset_names],
+                [self.read(dataset_name) for dataset_name in dataset_names
+                 if dataset_name != "monash_car_parts"],
                 ignore_index=True,
             )
 
@@ -349,7 +350,9 @@ def read_all_metadata(
         random_state=random_state,
     )
 
-    df = df.drop(columns=BAD_COLS)
+    df = df.drop(columns=BAD_COLS, errors='ignore')
+
+    df = df.query('dataset != "monash_car_parts"').reset_index(drop=True)
 
     df, _ = encode_cats(df)
 

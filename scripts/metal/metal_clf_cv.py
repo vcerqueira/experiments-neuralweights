@@ -36,6 +36,7 @@ fold_results: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 fold_scores: list[tuple[str, float, float, float]] = []
 for train_idx, test_idx in logo.split(X, y, groups):
     held_out = groups.iloc[test_idx[0]]
+    print(held_out)
 
     clf = CatBoostAUCClassifier(calibrate=True,
                                 calibration_method='platt',
@@ -45,6 +46,10 @@ for train_idx, test_idx in logo.split(X, y, groups):
 
     y_ts = y.iloc[test_idx].to_numpy()
     preds = clf.predict_proba(X.iloc[test_idx])[:, 1]
+
+    # if all(y_ts == 0):
+    #     y_ts = np.concatenate([y_ts, np.array([1])])
+    #     preds = np.concatenate([preds, np.array([0])])
 
     fold_results[held_out] = (y_ts, preds)
 

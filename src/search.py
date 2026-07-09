@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from functools import partial
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 
 import numpy as np
 import pandas as pd
@@ -12,9 +12,9 @@ from statsforecast import StatsForecast
 from statsforecast.models import SeasonalNaive
 from utilsforecast.losses import mase
 
-from src.algorithms import CatBoostAUCClassifier
+from src.algorithms import CatBoostAUCClassifier, CatBoostRegressionModel
 from src.config import TRY_MPS
-from src.early_stopping import ClassifierEarlyStopCallback
+from src.early_stopping import ClassifierEarlyStopCallback, MetaModelEarlyStopCallback
 from src.neural.nf_arch import ModelsConfig
 from src.utils import build_meta_xy
 
@@ -52,6 +52,45 @@ def train_meta_classifier(
     return clf, data.feature_columns
 
 
+def train_meta_regressor(
+        df: pd.DataFrame,
+        conformal_cal_size: float = 0.025,
+        y_clip: tuple[float, float] = (-2.5, 2.5),
+        verbose: bool = True,
+) -> tuple[CatBoostRegressionModel, list[str]]:
+    """Train a regression model with conformal prediction for exceedance probability.
+    
+    Args:
+        df: Training metadata (excluding target dataset).
+        conformal_cal_size: Fraction of data for conformal calibration.
+        y_clip: Min/max clipping for target variable.
+        verbose: Whether to print training info.
+    
+    Returns:
+        Trained CatBoostRegressionModel and list of feature column names.
+    """
+    data = build_meta_xy(
+        df, 
+        task="regression", 
+        use_step_as_feature=True,
+        performance_diff=True,
+        y_clip=y_clip,
+    )
+
+    reg = CatBoostRegressionModel(
+        conformal=True,
+        conformal_cal_size=conformal_cal_size,
+        calibration_method="isotonic",
+    )
+    reg.fit(data.X, data.y, calibrate_threshold=None)
+
+    if verbose:
+        print(f"Meta-regressor trained with {len(data.feature_columns)} features")
+        print(f"  Target (mase_sn - mase) range: [{data.y.min():.2f}, {data.y.max():.2f}]")
+    
+    return reg, data.feature_columns
+
+
 def run_hpo_search(
         target_dataset: str,
         metadata: pd.DataFrame,
@@ -71,7 +110,12 @@ def run_hpo_search(
         min_steps: int = 30,
         verbose: bool = True,
 ) -> tuple[pd.DataFrame, dict[str, dict]]:
-    """Run HPO search with meta-model early stopping for a single target dataset.
+    """Run HPO search with both classifier and regressor early stopping callbacks.
+    
+    Trains 3 models per config:
+    - Model with classifier-based early stopping callback
+    - Model with regressor-based early stopping callback  
+    - Model without any callback (baseline)
     
     Args:
         target_dataset: Name of the held-out dataset.
@@ -96,10 +140,17 @@ def run_hpo_search(
     """
     mase_func = partial(mase, seasonality=seas_len)
     
-    # Train meta-classifier on all datasets except target
+    # Train meta-models on all datasets except target
     meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
-    meta_classifier, feature_columns = train_meta_classifier(
+    
+    if verbose:
+        print("Training meta-models...")
+    
+    meta_classifier, clf_feature_columns = train_meta_classifier(
         meta_train, calibrate=True, verbose=verbose
+    )
+    meta_regressor, reg_feature_columns = train_meta_regressor(
+        meta_train, verbose=verbose
     )
     
     # Compute baseline MASE on validation
@@ -111,7 +162,7 @@ def run_hpo_search(
     mase_sn = mase_func(holdout_sn, models=['SeasonalNaive'], train_df=train).mean(numeric_only=True)['SeasonalNaive']
     
     if verbose:
-        print(f"Baseline validation MASE (SeasonalNaive): {mase_sn:.4f}")
+        print(f"\nBaseline validation MASE (SeasonalNaive): {mase_sn:.4f}")
     
     search_results = []
     config_registry = {}
@@ -128,9 +179,10 @@ def run_hpo_search(
         if verbose:
             print(f"\n[Config {configs_tried}/{n_trials}] {cfg_id}")
         
-        early_stop_cb = ClassifierEarlyStopCallback(
+        # Classifier-based early stopping callback
+        clf_cb = ClassifierEarlyStopCallback(
             meta_classifier=meta_classifier,
-            feature_columns=feature_columns,
+            feature_columns=clf_feature_columns,
             stopping_threshold=stopping_threshold,
             every_n_steps=cb_n_steps,
             min_steps=min_steps,
@@ -139,15 +191,42 @@ def run_hpo_search(
             category_mappings=category_mappings,
         )
         
-        nf_model_cb = ModelsConfig.create_model_instance(
+        # Regressor-based early stopping callback
+        reg_cb = MetaModelEarlyStopCallback(
+            meta_model=meta_regressor,
+            feature_columns=reg_feature_columns,
+            stopping_threshold=stopping_threshold,
+            exceedance_threshold=0.0,
+            every_n_steps=cb_n_steps,
+            min_steps=min_steps,
+            verbose=verbose,
+            config_data=config_sample,
+            category_mappings=category_mappings,
+        )
+        
+        # Model with classifier callback
+        nf_model_clf = ModelsConfig.create_model_instance(
             model_class=model_name,
             model_config=config_sample.copy(),
             horizon=horizon,
             input_size=n_lags,
             try_mps=TRY_MPS,
-            callbacks=[early_stop_cb],
+            callbacks=[clf_cb],
+            alias=f'{model_name}-CLF',
         )
         
+        # Model with regressor callback
+        nf_model_reg = ModelsConfig.create_model_instance(
+            model_class=model_name,
+            model_config=config_sample.copy(),
+            horizon=horizon,
+            input_size=n_lags,
+            try_mps=TRY_MPS,
+            callbacks=[reg_cb],
+            alias=f'{model_name}-REG',
+        )
+        
+        # Model without callback
         nf_model_nocb = ModelsConfig.create_model_instance(
             model_class=model_name,
             model_config=config_sample.copy(),
@@ -155,50 +234,59 @@ def run_hpo_search(
             input_size=n_lags,
             try_mps=TRY_MPS,
             callbacks=[],
-            alias=f'{model_name}-NoCB'
+            alias=f'{model_name}-NoCB',
         )
         
-        nf = NeuralForecast(models=[nf_model_cb, nf_model_nocb], freq=freq)
+        nf = NeuralForecast(models=[nf_model_clf, nf_model_reg, nf_model_nocb], freq=freq)
         nf.fit(df=train)
         
-        actual_cb = ClassifierEarlyStopCallback.get_cb(nf)
+        # Retrieve actual callbacks after training
+        actual_clf_cb = ClassifierEarlyStopCallback.get_cb(nf)
+        actual_reg_cb = MetaModelEarlyStopCallback.get_cb(nf)
         
         fcst = nf.predict()
         fcst['ds'] = valid['ds']
         
         holdout = valid.merge(fcst, how='left', on=['unique_id', 'ds'])
-        mase_model = mase_func(holdout, models=[model_name, f'{model_name}-NoCB'], train_df=train)
+        model_aliases = [f'{model_name}-CLF', f'{model_name}-REG', f'{model_name}-NoCB']
+        mase_model = mase_func(holdout, models=model_aliases, train_df=train)
         
         result = {
             'config_id': cfg_id,
             'dataset': target_dataset,
             'model': model_name,
-            'valid_mase_cb': float(mase_model[model_name].mean()),
+            'valid_mase_clf': float(mase_model[f'{model_name}-CLF'].mean()),
+            'valid_mase_reg': float(mase_model[f'{model_name}-REG'].mean()),
             'valid_mase_nocb': float(mase_model[f'{model_name}-NoCB'].mean()),
             'valid_mase_sn': mase_sn,
-            'stopped_early': actual_cb.stopped_early,
-            'stop_step': actual_cb.stop_step,
-            'n_predictions': len(actual_cb.predictions),
+            # Classifier callback stats
+            'clf_stopped_early': actual_clf_cb.stopped_early,
+            'clf_stop_step': actual_clf_cb.stop_step,
+            'clf_n_predictions': len(actual_clf_cb.predictions),
+            'clf_prob_exceed': actual_clf_cb.predictions[-1]['prob_exceed'] if actual_clf_cb.predictions else np.nan,
+            # Regressor callback stats
+            'reg_stopped_early': actual_reg_cb.stopped_early,
+            'reg_stop_step': actual_reg_cb.stop_step,
+            'reg_n_predictions': len(actual_reg_cb.predictions),
+            'reg_prob_exceed': actual_reg_cb.predictions[-1]['prob_exceed'] if actual_reg_cb.predictions else np.nan,
         }
         
-        if actual_cb.predictions:
-            result['final_prob_exceed'] = actual_cb.predictions[-1]['prob_exceed']
-        else:
-            result['final_prob_exceed'] = np.nan
-        
-        exceeds_baseline = result['valid_mase_cb'] > mase_sn
-        result['exceeds_baseline'] = exceeds_baseline
-        result['status'] = "WORSE" if exceeds_baseline else "BETTER"
+        # Determine status for each approach
+        result['clf_exceeds_baseline'] = result['valid_mase_clf'] > mase_sn
+        result['reg_exceeds_baseline'] = result['valid_mase_reg'] > mase_sn
+        result['nocb_exceeds_baseline'] = result['valid_mase_nocb'] > mase_sn
         
         if verbose:
-            early_str = f" (stopped @ step {result['stop_step']})" if result['stopped_early'] else ""
-            print(f"  MASE(cb)={result['valid_mase_cb']:.4f}, MASE(nocb)={result['valid_mase_nocb']:.4f} "
-                  f"vs baseline={mase_sn:.4f} -> {result['status']}{early_str}")
+            clf_str = f" (stopped@{result['clf_stop_step']})" if result['clf_stopped_early'] else ""
+            reg_str = f" (stopped@{result['reg_stop_step']})" if result['reg_stopped_early'] else ""
+            print(f"  CLF={result['valid_mase_clf']:.4f}{clf_str}, "
+                  f"REG={result['valid_mase_reg']:.4f}{reg_str}, "
+                  f"NoCB={result['valid_mase_nocb']:.4f} "
+                  f"(SN={mase_sn:.4f})")
         
         search_results.append(result)
     
     results_df = pd.DataFrame(search_results)
-    results_df['exceeds_baseline'] = (results_df['valid_mase_cb'] > results_df['valid_mase_sn']).astype(int)
     
     return results_df, config_registry
 
@@ -217,6 +305,12 @@ def evaluate_best_configs(
 ) -> dict[str, float]:
     """Evaluate best configs from search on test set.
     
+    Selects best config from each approach (classifier, regressor, no callback)
+    based on validation MASE, trains on full training data, and evaluates on test.
+    
+    For classifier and regressor approaches, only considers runs that completed
+    (not stopped early).
+    
     Args:
         results_df: Search results DataFrame.
         config_registry: Dict mapping config_id to config dict.
@@ -234,45 +328,75 @@ def evaluate_best_configs(
     """
     mase_func = partial(mase, seasonality=seas_len)
     
-    # Best config WITH callback (ignore early-stopped configs)
-    completed_runs = results_df[~results_df['stopped_early']]
-    if len(completed_runs) > 0:
-        best_cb_row = completed_runs.loc[completed_runs['valid_mase_cb'].idxmin()]
-        best_cb_config_id = best_cb_row['config_id']
-        best_cb_config = config_registry[best_cb_config_id]
+    final_models = []
+    final_model_names = []
+    best_configs = {}
+    
+    # Best config from CLASSIFIER approach (ignore early-stopped)
+    clf_completed = results_df[~results_df['clf_stopped_early']]
+    if len(clf_completed) > 0:
+        best_clf_row = clf_completed.loc[clf_completed['valid_mase_clf'].idxmin()]
+        best_clf_config_id = best_clf_row['config_id']
+        best_clf_config = config_registry[best_clf_config_id]
+        best_configs['clf'] = best_clf_config_id
+        
         if verbose:
-            print(f"\nBest config (with callback, completed): {best_cb_config_id}")
-            print(f"  Validation MASE: {best_cb_row['valid_mase_cb']:.4f}")
+            print(f"\nBest config (classifier, completed): {best_clf_config_id}")
+            print(f"  Validation MASE: {best_clf_row['valid_mase_clf']:.4f}")
+        
+        nf_best_clf = ModelsConfig.create_model_instance(
+            model_class=model_name,
+            model_config=best_clf_config.copy(),
+            horizon=horizon,
+            input_size=n_lags,
+            try_mps=TRY_MPS,
+            callbacks=[],
+            alias=f'{model_name}-BestCLF',
+        )
+        final_models.append(nf_best_clf)
+        final_model_names.append(f'{model_name}-BestCLF')
     else:
-        best_cb_config_id = None
-        best_cb_config = None
+        best_configs['clf'] = None
         if verbose:
-            print("\nNo completed runs with callback (all stopped early)")
+            print("\nNo completed runs with classifier callback (all stopped early)")
+    
+    # Best config from REGRESSOR approach (ignore early-stopped)
+    reg_completed = results_df[~results_df['reg_stopped_early']]
+    if len(reg_completed) > 0:
+        best_reg_row = reg_completed.loc[reg_completed['valid_mase_reg'].idxmin()]
+        best_reg_config_id = best_reg_row['config_id']
+        best_reg_config = config_registry[best_reg_config_id]
+        best_configs['reg'] = best_reg_config_id
+        
+        if verbose:
+            print(f"\nBest config (regressor, completed): {best_reg_config_id}")
+            print(f"  Validation MASE: {best_reg_row['valid_mase_reg']:.4f}")
+        
+        nf_best_reg = ModelsConfig.create_model_instance(
+            model_class=model_name,
+            model_config=best_reg_config.copy(),
+            horizon=horizon,
+            input_size=n_lags,
+            try_mps=TRY_MPS,
+            callbacks=[],
+            alias=f'{model_name}-BestREG',
+        )
+        final_models.append(nf_best_reg)
+        final_model_names.append(f'{model_name}-BestREG')
+    else:
+        best_configs['reg'] = None
+        if verbose:
+            print("\nNo completed runs with regressor callback (all stopped early)")
     
     # Best config WITHOUT callback (all configs)
     best_nocb_row = results_df.loc[results_df['valid_mase_nocb'].idxmin()]
     best_nocb_config_id = best_nocb_row['config_id']
     best_nocb_config = config_registry[best_nocb_config_id]
+    best_configs['nocb'] = best_nocb_config_id
+    
     if verbose:
-        print(f"\nBest config (without callback): {best_nocb_config_id}")
+        print(f"\nBest config (no callback): {best_nocb_config_id}")
         print(f"  Validation MASE: {best_nocb_row['valid_mase_nocb']:.4f}")
-    
-    # Build final models
-    final_models = []
-    final_model_names = []
-    
-    if best_cb_config is not None:
-        nf_best_cb = ModelsConfig.create_model_instance(
-            model_class=model_name,
-            model_config=best_cb_config.copy(),
-            horizon=horizon,
-            input_size=n_lags,
-            try_mps=TRY_MPS,
-            callbacks=[],
-            alias=f'{model_name}-BestCB',
-        )
-        final_models.append(nf_best_cb)
-        final_model_names.append(f'{model_name}-BestCB')
     
     nf_best_nocb = ModelsConfig.create_model_instance(
         model_class=model_name,
@@ -320,24 +444,23 @@ def evaluate_best_configs(
         for m, score in test_results.items():
             print(f"  {m}: {score:.4f}")
         
-        # Summary
+        # Summary comparison
         sn_mase = test_results['SeasonalNaive']
         print(f"\nBaseline (SeasonalNaive): {sn_mase:.4f}")
         
-        if best_cb_config is not None:
-            cb_mase = test_results[f'{model_name}-BestCB']
-            cb_vs_sn = "BETTER" if cb_mase < sn_mase else "WORSE"
-            cb_pct = 100 * (sn_mase - cb_mase) / sn_mase
-            print(f"Best (with callback):     {cb_mase:.4f} ({cb_vs_sn}, {cb_pct:+.1f}% vs SN)")
-        
-        nocb_mase = test_results[f'{model_name}-BestNoCB']
-        nocb_vs_sn = "BETTER" if nocb_mase < sn_mase else "WORSE"
-        nocb_pct = 100 * (sn_mase - nocb_mase) / sn_mase
-        print(f"Best (without callback):  {nocb_mase:.4f} ({nocb_vs_sn}, {nocb_pct:+.1f}% vs SN)")
+        for approach, col in [('BestCLF', f'{model_name}-BestCLF'), 
+                               ('BestREG', f'{model_name}-BestREG'),
+                               ('BestNoCB', f'{model_name}-BestNoCB')]:
+            if col in test_results:
+                approach_mase = test_results[col]
+                vs_sn = "BETTER" if approach_mase < sn_mase else "WORSE"
+                pct = 100 * (sn_mase - approach_mase) / sn_mase
+                print(f"{approach:12s}: {approach_mase:.4f} ({vs_sn}, {pct:+.1f}% vs SN)")
     
-    # Add metadata to results
-    test_results['best_cb_config_id'] = best_cb_config_id
-    test_results['best_nocb_config_id'] = best_nocb_config_id
+    # Add best config IDs to results
+    test_results['best_clf_config_id'] = best_configs.get('clf')
+    test_results['best_reg_config_id'] = best_configs.get('reg')
+    test_results['best_nocb_config_id'] = best_configs.get('nocb')
     
     return test_results
 

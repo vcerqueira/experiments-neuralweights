@@ -149,12 +149,15 @@ class MetaModelEarlyStopCallback(Callback):
         
         NeuralForecast deep-copies callbacks, so the original instance won't have
         the updated state. Use this method to get the actual callback after fitting.
+        
+        Searches across all models in the NeuralForecast instance.
         """
-        all_cbs = nf.models[0].trainer_kwargs.get('callbacks', [])
-        for cb in all_cbs:
-            if getattr(cb, 'name', None) == 'meta_early_stop':
-                return cb
-        raise ValueError("MetaModelEarlyStopCallback not found in model callbacks")
+        for model in nf.models:
+            all_cbs = model.trainer_kwargs.get('callbacks', [])
+            for cb in all_cbs:
+                if getattr(cb, 'name', None) == 'meta_early_stop':
+                    return cb
+        raise ValueError("MetaModelEarlyStopCallback not found in any model callbacks")
 
 
 class ClassifierEarlyStopCallback(Callback):
@@ -272,9 +275,13 @@ class ClassifierEarlyStopCallback(Callback):
 
     @staticmethod
     def get_cb(nf) -> "ClassifierEarlyStopCallback":
-        """Retrieve the actual callback instance from a fitted NeuralForecast model."""
-        all_cbs = nf.models[0].trainer_kwargs.get('callbacks', [])
-        for cb in all_cbs:
-            if getattr(cb, 'name', None) == 'classifier_early_stop':
-                return cb
-        raise ValueError("ClassifierEarlyStopCallback not found in model callbacks")
+        """Retrieve the actual callback instance from a fitted NeuralForecast model.
+        
+        Searches across all models in the NeuralForecast instance.
+        """
+        for model in nf.models:
+            all_cbs = model.trainer_kwargs.get('callbacks', [])
+            for cb in all_cbs:
+                if getattr(cb, 'name', None) == 'classifier_early_stop':
+                    return cb
+        raise ValueError("ClassifierEarlyStopCallback not found in any model callbacks")

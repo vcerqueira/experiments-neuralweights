@@ -238,8 +238,8 @@ class ClassifierEarlyStopCallback(Callback):
             smr_stats['step'] = step
 
             for k, v in self.config_data.items():
-                if k == 'scaler_type' and v is None:
-                    smr_stats[k] = 'none'
+                # if k == 'scaler_type' and v is None:
+                #     smr_stats[k] = 'none'
                 smr_stats[k] = v
 
             smr_stats['learning_rate'] = NeuralWeightsFeatureEng.bin_learning_rate(smr_stats['learning_rate'])

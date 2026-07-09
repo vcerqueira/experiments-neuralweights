@@ -70,12 +70,12 @@ def build_meta_xy(
     mase_sn_by_dataset = metadata.groupby('dataset')['mase_sn'].first()
 
     if task == "classification":
-        y = (metadata['mase'] > metadata['mase_sn']).astype(int)
+        y = (metadata['mase'] > metadata['mase_sn']).astype(int).values  # y=1 means exceeds/worse than baseline
     elif task == "regression":
         if performance_diff:
-            y = (metadata['mase_sn'] - metadata['mase'])
+            y = (metadata['mase_sn'] - metadata['mase']).values
         else:
-            y = metadata['mase']
+            y = metadata['mase'].values
 
         if y_clip is not None:
             y = np.clip(y, a_min=y_clip[0], a_max=y_clip[1])
@@ -354,9 +354,9 @@ def read_all_metadata(
 
     df = df.query('dataset != "monash_car_parts"').reset_index(drop=True)
 
-    df, _ = encode_cats(df)
+    df, category_mappings = encode_cats(df)
 
-    return df
+    return df, category_mappings
 
 
 def corr_coef(y_true, y_pred, method='spearman'):

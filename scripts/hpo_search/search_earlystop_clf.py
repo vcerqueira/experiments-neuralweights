@@ -16,22 +16,28 @@ from src.config import N_SAMPLES, SEED, TRY_MPS
 from src.neural.config_pool import NEURAL_CONFIG_POOL
 from src.neural.nf_arch import ModelsConfig
 from src.neural.param_samples import ConfigSampler
-from src.utils import read_all_metadata, build_meta_xy, load_dataset_splits
+from src.utils import (
+    read_all_metadata,
+    build_meta_xy,
+    load_dataset_splits,
+)
 from src.early_stopping import ClassifierEarlyStopCallback
 
 warnings.filterwarnings('ignore')
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
 
 STOPPING_THRESHOLD = 0.70
 N_TRIALS = 10
 CB_N_STEPS = 100
 
-model = 'MLP'
+model_name = 'MLP'
 
-metadata = read_all_metadata(
+metadata, category_mappings = read_all_metadata(
     './assets',
-    model,
-    processed_file=f'./assets/metadata_{model}.csv',
-    sample_n=100000
+    model_name,
+    processed_file=f'./assets/metadata_{model_name}.csv',
+    sample_n=150000,
 )
 
 
@@ -43,7 +49,7 @@ def train_meta_classifier(
     """Train a binary classifier to predict exceedance (MASE > MASE_baseline).
     
     Args:
-        meta_train: Training metadata (excluding target dataset).
+        df: Training metadata (excluding target dataset).
         calibrate: Whether to calibrate probabilities.
         cal_size: Fraction of data for calibration set.
     
@@ -54,16 +60,17 @@ def train_meta_classifier(
 
     clf = CatBoostAUCClassifier(
         calibrate=calibrate,
-        calibration_method="platt",
+        calibration_method="isotonic",
         cal_size=cal_size,
     )
     clf.fit(data.X, data.y)
 
     print(f"Meta-classifier trained with {len(data.feature_columns)} features")
+    print(f"  Class distribution: {data.y.mean():.1%} beats baseline")
     return clf, data.feature_columns
 
 
-target_dataset = 'monash_m1_monthly'
+target_dataset = 'monash_m3_monthly'
 meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
 
 train_full, train, valid, test, horizon, n_lags, freq, seas_len = load_dataset_splits(
@@ -73,7 +80,7 @@ mase_func = partial(mase, seasonality=seas_len)
 
 meta_classifier, feature_columns = train_meta_classifier(meta_train, calibrate=True)
 
-config_pool = NEURAL_CONFIG_POOL[model]
+config_pool = NEURAL_CONFIG_POOL[model_name]
 config_list = ConfigSampler.generate_samples(
     config_pool=config_pool,
     num_samples=N_SAMPLES,
@@ -99,7 +106,6 @@ for config_sample in config_list:
 
     print(f"\n[Config {configs_tried}/{N_TRIALS}] {cfg_id}")
 
-    # todo align cb feature extraction
     early_stop_cb = ClassifierEarlyStopCallback(
         meta_classifier=meta_classifier,
         feature_columns=feature_columns,
@@ -111,8 +117,8 @@ for config_sample in config_list:
         category_mappings=category_mappings,
     )
 
-    model = ModelsConfig.create_model_instance(
-        model_class=model,
+    nf_model_cb = ModelsConfig.create_model_instance(
+        model_class=model_name,
         model_config=config_sample.copy(),
         horizon=horizon,
         input_size=n_lags,
@@ -120,17 +126,17 @@ for config_sample in config_list:
         callbacks=[early_stop_cb],
     )
 
-    model_no_cb = ModelsConfig.create_model_instance(
-        model_class=model,
+    nf_model_nocb = ModelsConfig.create_model_instance(
+        model_class=model_name,
         model_config=config_sample.copy(),
         horizon=horizon,
         input_size=n_lags,
         try_mps=TRY_MPS,
-        callbacks=[early_stop_cb],
-        alias=f'{model}-NoCB'
+        callbacks=[],
+        alias=f'{model_name}-NoCB'
     )
 
-    nf = NeuralForecast(models=[model, model_no_cb], freq=freq)
+    nf = NeuralForecast(models=[nf_model_cb, nf_model_nocb], freq=freq)
     nf.fit(df=train)
 
     actual_cb = ClassifierEarlyStopCallback.get_cb(nf)
@@ -140,14 +146,14 @@ for config_sample in config_list:
 
     holdout = valid.merge(fcst, how='left', on=['unique_id', 'ds'])
 
-    mase_model = mase_func(holdout, models=[model], train_df=train)
+    mase_model = mase_func(holdout, models=[model_name, f'{model_name}-NoCB'], train_df=train)
 
     result = {
         'config_id': cfg_id,
         'dataset': target_dataset,
-        'model': model,
-        'valid_mase_cb': float(mase_model[model].mean()),
-        'valid_mase_nocb': float(mase_model[f'{model}-NoCB'].mean()),
+        'model': model_name,
+        'valid_mase_cb': float(mase_model[model_name].mean()),
+        'valid_mase_nocb': float(mase_model[f'{model_name}-NoCB'].mean()),
         'valid_mase_sn': mase_sn,
         'stopped_early': actual_cb.stopped_early,
         'stop_step': actual_cb.stop_step,
@@ -159,24 +165,36 @@ for config_sample in config_list:
     else:
         result['final_prob_exceed'] = np.nan
 
-    exceeds_baseline = result['mase'] > mase_sn
+    exceeds_baseline = result['valid_mase_cb'] > mase_sn
     status = "WORSE" if exceeds_baseline else "BETTER"
     result['exceeds_baseline'] = exceeds_baseline
     result['status'] = status
 
     early_str = f" (stopped @ step {result['stop_step']})" if result['stopped_early'] else ""
-    print(f"  MASE={result['mase']:.4f} vs baseline={mase_sn:.4f} -> {status}{early_str}")
+    print(f"  MASE(cb)={result['valid_mase_cb']:.4f}, MASE(nocb)={result['valid_mase_nocb']:.4f} "
+          f"vs baseline={mase_sn:.4f} -> {status}{early_str}")
 
     search_results.append(result)
 
 results_df = pd.DataFrame(search_results)
 
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
+results_df['exceeds_baseline'] = (results_df['valid_mase_cb'] > results_df['valid_mase_sn']).astype(int)
 
-print(roc_auc_score(results_df['status'], results_df['final_prob_exceed']))
-print(log_loss(results_df['status'], results_df['final_prob_exceed']))
+print("\n" + "=" * 60)
+print("SEARCH SUMMARY")
+print("=" * 60)
 
-print(results_df)
+auc = roc_auc_score(results_df['exceeds_baseline'], results_df['final_prob_exceed'])
+ll = log_loss(results_df['exceeds_baseline'], results_df['final_prob_exceed'])
+print(f"Meta-classifier AUC: {auc:.3f}, Log Loss: {ll:.3f}")
 
-# todo retrain best
+print(f"Configs tried: {len(results_df)}")
+print(f"Early stopped: {results_df['stopped_early'].sum()} ({100 * results_df['stopped_early'].mean():.1f}%)")
+print(f"Exceeded baseline: {results_df['exceeds_baseline'].sum()} ({100 * results_df['exceeds_baseline'].mean():.1f}%)")
+
+print("\n",
+      results_df[['config_id', 'valid_mase_cb', 'valid_mase_nocb', 'stopped_early', 'final_prob_exceed', 'status']])
+
+
+
+

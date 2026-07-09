@@ -15,7 +15,7 @@ plot_path = Path("./assets/outputs") / f"metal_clf_roc_{model}_logo.pdf"
 plot_path_m3 = Path("./assets/outputs") / f"metal_clf_roc_{model}_monash_m3_monthly_logo.pdf"
 target_dataset = 'monash_m3_monthly'
 
-metadata = read_all_metadata(
+metadata, category_mappings = read_all_metadata(
     './assets', model,
     processed_file=f'./assets/metadata_{model}.csv',
     sample_n=100000

@@ -1,200 +1,228 @@
+"""HPO search with classifier-based early stopping (leave-one-out evaluation)."""
 from __future__ import annotations
 
 import warnings
-from functools import partial
+from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, log_loss
-from neuralforecast import NeuralForecast
-from statsforecast import StatsForecast
-from statsforecast.models import SeasonalNaive
-from utilsforecast.losses import mase
 
-from src.algorithms import CatBoostAUCClassifier
-from src.config import N_SAMPLES, SEED, TRY_MPS
+from src.config import N_SAMPLES, SEED
 from src.neural.config_pool import NEURAL_CONFIG_POOL
-from src.neural.nf_arch import ModelsConfig
 from src.neural.param_samples import ConfigSampler
-from src.utils import (
-    read_all_metadata,
-    build_meta_xy,
-    load_dataset_splits,
+from src.search import (
+    run_hpo_search,
+    evaluate_best_configs,
+    save_search_results,
 )
-from src.early_stopping import ClassifierEarlyStopCallback
+from src.utils import read_all_metadata, load_dataset_splits
 
 warnings.filterwarnings('ignore')
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
+# =============================================================================
+# Configuration
+# =============================================================================
 STOPPING_THRESHOLD = 0.70
-N_TRIALS = 10
+N_TRIALS = 25
 CB_N_STEPS = 100
+MODEL_NAME = 'MLP'
+OUTPUT_DIR = Path('./assets/results_search')
 
-model_name = 'MLP'
-
+# =============================================================================
+# Load metadata and generate config samples
+# =============================================================================
+print("Loading metadata...")
 metadata, category_mappings = read_all_metadata(
     './assets',
-    model_name,
-    processed_file=f'./assets/metadata_{model_name}.csv',
-    sample_n=150000,
+    MODEL_NAME,
+    processed_file=f'./assets/metadata_{MODEL_NAME}.csv',
+    sample_n=200000,
 )
 
+# Get all unique datasets
+all_datasets = sorted(metadata['dataset'].unique().tolist())
+print(f"Found {len(all_datasets)} datasets: {all_datasets}")
 
-def train_meta_classifier(
-        df: pd.DataFrame,
-        calibrate: bool = True,
-        cal_size: float = 0.2,
-) -> tuple[CatBoostAUCClassifier, list[str]]:
-    """Train a binary classifier to predict exceedance (MASE > MASE_baseline).
-    
-    Args:
-        df: Training metadata (excluding target dataset).
-        calibrate: Whether to calibrate probabilities.
-        cal_size: Fraction of data for calibration set.
-    
-    Returns:
-        Trained CatBoostAUCClassifier and list of feature column names.
-    """
-    data = build_meta_xy(df, task="classification", use_step_as_feature=True)
-
-    clf = CatBoostAUCClassifier(
-        calibrate=calibrate,
-        calibration_method="isotonic",
-        cal_size=cal_size,
-    )
-    clf.fit(data.X, data.y)
-
-    print(f"Meta-classifier trained with {len(data.feature_columns)} features")
-    print(f"  Class distribution: {data.y.mean():.1%} beats baseline")
-    return clf, data.feature_columns
-
-
-target_dataset = 'monash_m3_monthly'
-meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
-
-train_full, train, valid, test, horizon, n_lags, freq, seas_len = load_dataset_splits(
-    target_dataset, get_valid=True
-)
-mase_func = partial(mase, seasonality=seas_len)
-
-meta_classifier, feature_columns = train_meta_classifier(meta_train, calibrate=True)
-
-config_pool = NEURAL_CONFIG_POOL[model_name]
-config_list = ConfigSampler.generate_samples(
+# Generate config samples (same for all datasets)
+config_pool = NEURAL_CONFIG_POOL[MODEL_NAME]
+config_list_master = ConfigSampler.generate_samples(
     config_pool=config_pool,
     num_samples=N_SAMPLES,
     random_state=SEED,
 )
 
-sf = StatsForecast(models=[SeasonalNaive(season_length=seas_len)], freq=freq)
-sf.fit(train)
-fcst_sf = sf.predict(h=horizon)
-fcst_sf['ds'] = valid['ds']
-holdout = valid.merge(fcst_sf, how='left', on=['unique_id', 'ds'])
-mase_sn = mase_func(holdout, models=['SeasonalNaive'], train_df=train).mean(numeric_only=True)['SeasonalNaive']
-print(f"Baseline validation MASE (SeasonalNaive): {mase_sn:.4f}")
+# =============================================================================
+# Leave-one-out evaluation
+# =============================================================================
+all_search_results = []
+all_test_results = []
 
-search_results = []
-configs_tried = 0
-for config_sample in config_list:
-    if configs_tried >= N_TRIALS:
-        break
+for i, target_dataset in enumerate(all_datasets):
+    print("\n" + "=" * 70)
+    print(f"[{i + 1}/{len(all_datasets)}] TARGET DATASET: {target_dataset}")
+    print("=" * 70)
 
-    cfg_id = config_sample.pop('config_id')
-    configs_tried += 1
+    # Load dataset splits
+    try:
+        train_full, train, valid, test, horizon, n_lags, freq, seas_len = load_dataset_splits(
+            target_dataset, get_valid=True
+        )
+    except Exception as e:
+        print(f"  Skipping {target_dataset}: {e}")
+        continue
 
-    print(f"\n[Config {configs_tried}/{N_TRIALS}] {cfg_id}")
+    # Fresh copy of config list for each dataset
+    config_list = [cfg.copy() for cfg in config_list_master]
 
-    early_stop_cb = ClassifierEarlyStopCallback(
-        meta_classifier=meta_classifier,
-        feature_columns=feature_columns,
-        stopping_threshold=STOPPING_THRESHOLD,
-        every_n_steps=CB_N_STEPS,
-        min_steps=30,
-        verbose=True,
-        config_data=config_sample,
+    # Run HPO search
+    results_df, config_registry = run_hpo_search(
+        target_dataset=target_dataset,
+        metadata=metadata,
         category_mappings=category_mappings,
-    )
-
-    nf_model_cb = ModelsConfig.create_model_instance(
-        model_class=model_name,
-        model_config=config_sample.copy(),
+        config_list=config_list,
+        model_name=MODEL_NAME,
+        train=train,
+        valid=valid,
         horizon=horizon,
-        input_size=n_lags,
-        try_mps=TRY_MPS,
-        callbacks=[early_stop_cb],
+        n_lags=n_lags,
+        freq=freq,
+        seas_len=seas_len,
+        n_trials=N_TRIALS,
+        stopping_threshold=STOPPING_THRESHOLD,
+        cb_n_steps=CB_N_STEPS,
+        verbose=True,
     )
 
-    nf_model_nocb = ModelsConfig.create_model_instance(
-        model_class=model_name,
-        model_config=config_sample.copy(),
-        horizon=horizon,
-        input_size=n_lags,
-        try_mps=TRY_MPS,
-        callbacks=[],
-        alias=f'{model_name}-NoCB'
-    )
+    # Print search summary
+    print("\n" + "-" * 40)
+    print("SEARCH SUMMARY")
+    print("-" * 40)
 
-    nf = NeuralForecast(models=[nf_model_cb, nf_model_nocb], freq=freq)
-    nf.fit(df=train)
-
-    actual_cb = ClassifierEarlyStopCallback.get_cb(nf)
-
-    fcst = nf.predict()
-    fcst['ds'] = valid['ds']
-
-    holdout = valid.merge(fcst, how='left', on=['unique_id', 'ds'])
-
-    mase_model = mase_func(holdout, models=[model_name, f'{model_name}-NoCB'], train_df=train)
-
-    result = {
-        'config_id': cfg_id,
-        'dataset': target_dataset,
-        'model': model_name,
-        'valid_mase_cb': float(mase_model[model_name].mean()),
-        'valid_mase_nocb': float(mase_model[f'{model_name}-NoCB'].mean()),
-        'valid_mase_sn': mase_sn,
-        'stopped_early': actual_cb.stopped_early,
-        'stop_step': actual_cb.stop_step,
-        'n_predictions': len(actual_cb.predictions),
-    }
-
-    if actual_cb.predictions:
-        result['final_prob_exceed'] = actual_cb.predictions[-1]['prob_exceed']
+    if len(results_df) > 1 and results_df['exceeds_baseline'].nunique() > 1:
+        auc = roc_auc_score(results_df['exceeds_baseline'], results_df['final_prob_exceed'])
+        ll = log_loss(results_df['exceeds_baseline'], results_df['final_prob_exceed'])
+        print(f"Meta-classifier AUC: {auc:.3f}, Log Loss: {ll:.3f}")
     else:
-        result['final_prob_exceed'] = np.nan
+        auc, ll = None, None
+        print("Not enough class variation for AUC/LogLoss")
 
-    exceeds_baseline = result['valid_mase_cb'] > mase_sn
-    status = "WORSE" if exceeds_baseline else "BETTER"
-    result['exceeds_baseline'] = exceeds_baseline
-    result['status'] = status
+    print(f"Configs tried: {len(results_df)}")
+    print(f"Early stopped: {results_df['stopped_early'].sum()} ({100 * results_df['stopped_early'].mean():.1f}%)")
+    print(
+        f"Exceeded baseline: {results_df['exceeds_baseline'].sum()} ({100 * results_df['exceeds_baseline'].mean():.1f}%)")
 
-    early_str = f" (stopped @ step {result['stop_step']})" if result['stopped_early'] else ""
-    print(f"  MASE(cb)={result['valid_mase_cb']:.4f}, MASE(nocb)={result['valid_mase_nocb']:.4f} "
-          f"vs baseline={mase_sn:.4f} -> {status}{early_str}")
+    print("\n",
+          results_df[['config_id', 'valid_mase_cb', 'valid_mase_nocb', 'stopped_early', 'final_prob_exceed', 'status']])
 
-    search_results.append(result)
+    # Evaluate best configs on test set
+    print("\n" + "-" * 40)
+    print("FINAL EVALUATION ON TEST SET")
+    print("-" * 40)
 
-results_df = pd.DataFrame(search_results)
+    test_results = evaluate_best_configs(
+        results_df=results_df,
+        config_registry=config_registry,
+        model_name=MODEL_NAME,
+        train_full=train_full,
+        test=test,
+        horizon=horizon,
+        n_lags=n_lags,
+        freq=freq,
+        seas_len=seas_len,
+        verbose=True,
+    )
 
-results_df['exceeds_baseline'] = (results_df['valid_mase_cb'] > results_df['valid_mase_sn']).astype(int)
+    # Add search metrics to test results
+    test_results['search_auc'] = auc
+    test_results['search_ll'] = ll
+    test_results['n_early_stopped'] = int(results_df['stopped_early'].sum())
+    test_results['n_trials'] = len(results_df)
 
-print("\n" + "=" * 60)
-print("SEARCH SUMMARY")
-print("=" * 60)
+    # Save results for this dataset
+    search_path, test_path = save_search_results(
+        results_df=results_df,
+        test_results=test_results,
+        target_dataset=target_dataset,
+        output_dir=OUTPUT_DIR,
+    )
+    print(f"\nSaved: {search_path}")
+    print(f"Saved: {test_path}")
 
-auc = roc_auc_score(results_df['exceeds_baseline'], results_df['final_prob_exceed'])
-ll = log_loss(results_df['exceeds_baseline'], results_df['final_prob_exceed'])
-print(f"Meta-classifier AUC: {auc:.3f}, Log Loss: {ll:.3f}")
+    # Collect for aggregation
+    results_df['search_auc'] = auc
+    results_df['search_ll'] = ll
+    all_search_results.append(results_df)
 
-print(f"Configs tried: {len(results_df)}")
-print(f"Early stopped: {results_df['stopped_early'].sum()} ({100 * results_df['stopped_early'].mean():.1f}%)")
-print(f"Exceeded baseline: {results_df['exceeds_baseline'].sum()} ({100 * results_df['exceeds_baseline'].mean():.1f}%)")
+    test_results['dataset'] = target_dataset
+    all_test_results.append(test_results)
 
-print("\n",
-      results_df[['config_id', 'valid_mase_cb', 'valid_mase_nocb', 'stopped_early', 'final_prob_exceed', 'status']])
+# =============================================================================
+# Aggregate results across all datasets
+# =============================================================================
+print("\n" + "=" * 70)
+print("AGGREGATE RESULTS (ALL DATASETS)")
+print("=" * 70)
 
+if all_search_results:
+    all_search_df = pd.concat(all_search_results, ignore_index=True)
+    all_test_df = pd.DataFrame(all_test_results)
 
+    # Save aggregated results
+    all_search_df.to_csv(OUTPUT_DIR / "search_all.csv", index=False)
+    all_test_df.to_csv(OUTPUT_DIR / "test_all.csv", index=False)
+    print(f"\nSaved: {OUTPUT_DIR / 'search_all.csv'}")
+    print(f"Saved: {OUTPUT_DIR / 'test_all.csv'}")
 
+    # Summary statistics
+    print("\n" + "-" * 40)
+    print("TEST SET SUMMARY (mean across datasets)")
+    print("-" * 40)
 
+    sn_col = 'SeasonalNaive'
+    cb_col = f'{MODEL_NAME}-BestCB'
+    nocb_col = f'{MODEL_NAME}-BestNoCB'
+
+    if sn_col in all_test_df.columns:
+        print(f"SeasonalNaive:        {all_test_df[sn_col].mean():.4f} ± {all_test_df[sn_col].std():.4f}")
+
+    if cb_col in all_test_df.columns:
+        valid_cb = all_test_df[all_test_df[cb_col].notna()]
+        if len(valid_cb) > 0:
+            print(
+                f"Best (with callback): {valid_cb[cb_col].mean():.4f} ± {valid_cb[cb_col].std():.4f} ({len(valid_cb)} datasets)")
+
+    if nocb_col in all_test_df.columns:
+        print(f"Best (no callback):   {all_test_df[nocb_col].mean():.4f} ± {all_test_df[nocb_col].std():.4f}")
+
+    # Early stopping stats
+    print("\n" + "-" * 40)
+    print("EARLY STOPPING SUMMARY")
+    print("-" * 40)
+    total_trials = all_search_df['config_id'].count()
+    total_early_stopped = all_search_df['stopped_early'].sum()
+    print(f"Total configs tried: {total_trials}")
+    print(f"Total early stopped: {total_early_stopped} ({100 * total_early_stopped / total_trials:.1f}%)")
+
+    # Per-dataset early stopping rate
+    es_by_dataset = all_search_df.groupby('dataset')['stopped_early'].agg(['sum', 'count'])
+    es_by_dataset['rate'] = es_by_dataset['sum'] / es_by_dataset['count']
+    print("\nEarly stopping rate by dataset:")
+    print(es_by_dataset.sort_values('rate', ascending=False))
+
+    # Winner counts
+    if cb_col in all_test_df.columns and nocb_col in all_test_df.columns:
+        valid_comparison = all_test_df[all_test_df[cb_col].notna()]
+        cb_wins = (valid_comparison[cb_col] < valid_comparison[nocb_col]).sum()
+        nocb_wins = (valid_comparison[nocb_col] < valid_comparison[cb_col]).sum()
+        ties = len(valid_comparison) - cb_wins - nocb_wins
+
+        print("\n" + "-" * 40)
+        print("WINNER COUNT")
+        print("-" * 40)
+        print(f"Callback approach wins:    {cb_wins}")
+        print(f"No-callback approach wins: {nocb_wins}")
+        print(f"Ties:                      {ties}")
+else:
+    print("No results collected.")

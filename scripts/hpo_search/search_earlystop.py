@@ -18,7 +18,7 @@ pd.set_option('display.max_rows', None)
 # Configuration
 # =============================================================================
 STOPPING_THRESHOLD = 0.70
-N_TRIALS = 2
+N_TRIALS = 30
 CB_N_STEPS = 100
 MODEL_NAME = 'MLP'
 OUTPUT_DIR = Path('./assets/results_search')
@@ -31,13 +31,12 @@ metadata, category_mappings = read_all_metadata(
     './assets',
     MODEL_NAME,
     processed_file=f'./assets/metadata_{MODEL_NAME}.csv',
-    sample_n=20000,
+    # sample_n=200000,
 )
 
-# Get all unique datasets
 all_datasets = sorted(metadata['dataset'].unique().tolist())
 
-all_datasets = all_datasets[:2]
+# all_datasets = [all_datasets[2]]
 
 print(f"Found {len(all_datasets)} datasets: {all_datasets}")
 
@@ -136,7 +135,6 @@ for i, target_dataset in enumerate(all_datasets):
 all_search_df = pd.concat(all_search_results, ignore_index=True)
 all_test_df = pd.DataFrame(all_test_results)
 
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 search_path = OUTPUT_DIR / f"search_{MODEL_NAME}.csv"
 test_path = OUTPUT_DIR / f"test_{MODEL_NAME}.csv"
 all_search_df.to_csv(search_path, index=False)

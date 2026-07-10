@@ -195,7 +195,7 @@ def run_hpo_search(
         reg_cb = MetaModelEarlyStopCallback(
             meta_model=meta_regressor,
             feature_columns=reg_feature_columns,
-            stopping_threshold=stopping_threshold,
+            stopping_threshold=0.85,
             exceedance_threshold=0.0,
             every_n_steps=cb_n_steps,
             min_steps=min_steps,
@@ -457,7 +457,6 @@ def evaluate_best_configs(
                 pct = 100 * (sn_mase - approach_mase) / sn_mase
                 print(f"{approach:12s}: {approach_mase:.4f} ({vs_sn}, {pct:+.1f}% vs SN)")
     
-    # Add best config IDs to results
     test_results['best_clf_config_id'] = best_configs.get('clf')
     test_results['best_reg_config_id'] = best_configs.get('reg')
     test_results['best_nocb_config_id'] = best_configs.get('nocb')

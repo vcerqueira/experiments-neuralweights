@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotnine as p9
+from plotnine.themes.themeable import legend_position
 
 from src.utils import read_all_metadata
 
@@ -15,10 +16,14 @@ metadata, _ = read_all_metadata(
     './assets',
     MODEL_NAME,
     processed_file=f'./assets/metadata_{MODEL_NAME}.csv',
+    # sample_n=100000
 )
 
-metadata['class'] = (metadata['mase'] < metadata['mase_sn']).map({True: 'Better', False: 'Worse'})
-metadata['class'] = pd.Categorical(metadata['class'], categories=['Better', 'Worse'])
+metadata['class'] = (metadata['mase'] < metadata['mase_sn']).map({True: 'Better than Seasonal Naive',
+                                                                  False: 'Worse than Seasonal Naive'})
+metadata['class'] = pd.Categorical(metadata['class'],
+                                   categories=['Better than Seasonal Naive',
+                                               'Worse than Seasonal Naive'])
 
 for feature in TOP_FEATURES:
     if feature not in metadata.columns:
@@ -47,6 +52,7 @@ for feature in TOP_FEATURES:
                        legend_background=p9.element_rect(fill='white'),
                        # axis_text_x=p9.element_text(size=9, angle=0),
                        axis_text_y=p9.element_text(size=9),
+                       legend_position='top',
                        legend_title=p9.element_blank())
 
     )

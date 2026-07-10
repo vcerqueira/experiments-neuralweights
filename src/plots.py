@@ -6,6 +6,7 @@ from typing import Optional, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotnine as p9
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from sklearn.calibration import calibration_curve
@@ -15,16 +16,16 @@ ArrayLike = Union[np.ndarray, list[float]]
 
 
 def plot_roc_curve(
-    y_true: ArrayLike,
-    y_score: ArrayLike,
-    auc: float,
-    *,
-    title: Optional[str] = None,
-    label: Optional[str] = None,
-    save_path: Optional[Union[str, Path]] = None,
-    show: bool = False,
-    figsize: tuple[float, float] = (6.5, 6.5),
-    dpi: int = 150,
+        y_true: ArrayLike,
+        y_score: ArrayLike,
+        auc: float,
+        *,
+        title: Optional[str] = None,
+        label: Optional[str] = None,
+        save_path: Optional[Union[str, Path]] = None,
+        show: bool = False,
+        figsize: tuple[float, float] = (6.5, 6.5),
+        dpi: int = 150,
 ) -> tuple[Figure, Axes]:
     """Plot a ROC curve and optionally save it as PDF."""
     y_true_arr = np.asarray(y_true)
@@ -75,14 +76,14 @@ def plot_roc_curve(
 
 
 def plot_feature_importance(
-    importances: pd.Series,
-    *,
-    title: Optional[str] = None,
-    save_path: Optional[Union[str, Path]] = None,
-    show: bool = False,
-    top_n: Optional[int] = 20,
-    figsize: tuple[float, float] = (8.0, 6.0),
-    dpi: int = 150,
+        importances: pd.Series,
+        *,
+        title: Optional[str] = None,
+        save_path: Optional[Union[str, Path]] = None,
+        show: bool = False,
+        top_n: Optional[int] = 20,
+        figsize: tuple[float, float] = (8.0, 6.0),
+        dpi: int = 150,
 ) -> tuple[Figure, Axes]:
     """Plot feature importances as a horizontal bar chart."""
     scores = importances.sort_values(ascending=True)
@@ -118,17 +119,17 @@ def plot_feature_importance(
 
 
 def plot_calibration_curve(
-    y_true: ArrayLike,
-    y_prob: ArrayLike,
-    *,
-    y_prob_calibrated: Optional[dict[str, ArrayLike]] = None,
-    n_bins: int = 10,
-    strategy: str = "uniform",
-    title: Optional[str] = None,
-    save_path: Optional[Union[str, Path]] = None,
-    show: bool = False,
-    figsize: tuple[float, float] = (7.0, 6.0),
-    dpi: int = 150,
+        y_true: ArrayLike,
+        y_prob: ArrayLike,
+        *,
+        y_prob_calibrated: Optional[dict[str, ArrayLike]] = None,
+        n_bins: int = 10,
+        strategy: str = "uniform",
+        title: Optional[str] = None,
+        save_path: Optional[Union[str, Path]] = None,
+        show: bool = False,
+        figsize: tuple[float, float] = (7.0, 6.0),
+        dpi: int = 150,
 ) -> tuple[Figure, Axes]:
     """Plot calibration curve (reliability diagram) for probability predictions.
 

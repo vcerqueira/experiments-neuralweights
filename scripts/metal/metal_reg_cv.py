@@ -19,10 +19,10 @@ PERFORMANCE_DIFF = True
 Y_CLIP = (-2.5, 2.5)
 # Y_CLIP = (0, 4)
 
-metadata = read_all_metadata(
+metadata, category_mappings = read_all_metadata(
     './assets', model,
     processed_file=f'./assets/metadata_{model}.csv',
-    sample_n=100000
+    sample_n=10000
 )
 
 data = build_meta_xy(metadata,
@@ -32,7 +32,7 @@ data = build_meta_xy(metadata,
                      y_clip=Y_CLIP)
 
 X = data.X
-y = data.y
+y = pd.Series(data.y)
 groups = data.groups
 mase_sn_by_dataset = data.mase_sn_by_dataset
 
@@ -95,7 +95,6 @@ for train_idx, test_idx in logo.split(X, y, groups):
     print(f"{held_out}: nMAE={nmae_fold:.3f}, AUC={auc_exc:.3f}, "
           f"LL(raw/iso/platt)={ll_raw:.3f}/{ll_iso:.3f}/{ll_platt:.3f}")
 
-
 metrics_df = pd.DataFrame(fold_metrics)
 print("\n--- Metrics Summary (mean ± std) ---")
 summary_cols = ['nmae', 'auc_exc', 'kendall', 'spearman', 'll_raw', 'll_iso',
@@ -109,7 +108,7 @@ plot_calibration_curve(
     exc_raw_folds[2],
     y_prob_calibrated={"isotonic": exc_isotonic_folds[2], "platt": exc_platt_folds[2]},
     n_bins=10,
-    title=f"Calibration Curve — Exceedance Probability ({model})",
+    title=f"",
     save_path=calib_plot_path,
+    raw_label="Raw (conformal)",
 )
-print(f"\nCalibration curve saved to {calib_plot_path}")

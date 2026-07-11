@@ -16,7 +16,6 @@ metadata, _ = read_all_metadata(
     './assets',
     MODEL_NAME,
     processed_file=f'./assets/metadata_{MODEL_NAME}.csv',
-    # sample_n=100000
 )
 
 metadata['class'] = (metadata['mase'] < metadata['mase_sn']).map({True: 'Better than Seasonal Naive',

@@ -2,12 +2,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score, log_loss, brier_score_loss
+import plotnine as p9
+from sklearn.metrics import roc_auc_score, log_loss, brier_score_loss, roc_curve
 from sklearn.model_selection import LeaveOneGroupOut
 
 from src.utils import read_all_metadata, build_meta_xy
 from src.algorithms.binary import CatBoostAUCClassifier
-from src.plots import plot_roc_curve
 
 model = 'MLP'
 data_dir = Path('./assets/results')
@@ -18,7 +18,7 @@ target_dataset = 'monash_m3_monthly'
 metadata, category_mappings = read_all_metadata(
     './assets', model,
     processed_file=f'./assets/metadata_{model}.csv',
-    sample_n=100000
+    # sample_n=100000
 )
 
 data = build_meta_xy(metadata,
@@ -26,7 +26,7 @@ data = build_meta_xy(metadata,
                      use_step_as_feature=True)
 
 X = data.X
-y = data.y
+y = pd.Series(data.y)
 groups = data.groups
 
 print(data.groups.value_counts())
@@ -64,13 +64,45 @@ y_m3, preds_m3 = fold_results[target_dataset]
 auc_m3 = roc_auc_score(y_m3, preds_m3)
 print(f"{target_dataset} LOO AUC = {auc_m3:.3f}")
 
-plot_roc_curve(
-    y_m3,
-    preds_m3,
-    auc_m3,
-    title=f"ROC Curve — {model} / {target_dataset} (leave-one-dataset-out)",
-    save_path=plot_path_m3,
+fpr, tpr, _ = roc_curve(y_m3, preds_m3)
+roc_df = pd.DataFrame({'FPR': fpr, 'TPR': tpr})
+random_df = pd.DataFrame({'FPR': [0, 1], 'TPR': [0, 1]})
+
+p = (
+        p9.ggplot()
+        + p9.geom_line(
+    random_df,
+    p9.aes(x='FPR', y='TPR'),
+    linetype='dashed',
+    color='#94a3b8',
+    size=1.0)
+        + p9.geom_line(
+    roc_df,
+    p9.aes(x='FPR', y='TPR'),
+    color='#2563eb',
+    size=1.2,
 )
+        + p9.labs(
+    x='False Positive Rate',
+    y='True Positive Rate',
+)
+        + p9.scale_x_continuous(limits=(0, 1), breaks=np.arange(0, 1.1, 0.2))
+        + p9.scale_y_continuous(limits=(0, 1), breaks=np.arange(0, 1.1, 0.2))
+        + p9.theme_538(base_family='Palatino', base_size=14)
+        + p9.theme(
+    plot_margin=0.025,
+    panel_background=p9.element_rect(fill='white'),
+    plot_background=p9.element_rect(fill='white'),
+    legend_box_background=p9.element_rect(fill='white'),
+    strip_background=p9.element_rect(fill='white'),
+    legend_background=p9.element_rect(fill='white'),
+    axis_text_y=p9.element_text(size=9),
+    legend_title=p9.element_blank(),
+    aspect_ratio=1,
+)
+)
+
+p.save(plot_path_m3, width=7, height=7, verbose=False)
 
 auc_df = pd.DataFrame(fold_scores, columns=['dataset', 'auc', 'll', 'brier'])
 auc_df.mean(numeric_only=True)

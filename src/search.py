@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from functools import partial
 from pathlib import Path
-from typing import Optional, Literal
 
 import numpy as np
 import pandas as pd
@@ -23,7 +22,6 @@ def train_meta_classifier(
         df: pd.DataFrame,
         calibrate: bool = True,
         cal_size: float = 0.2,
-        verbose: bool = True,
 ) -> tuple[CatBoostAUCClassifier, list[str]]:
     """Train a binary classifier to predict exceedance (MASE > MASE_baseline).
     
@@ -40,15 +38,11 @@ def train_meta_classifier(
 
     clf = CatBoostAUCClassifier(
         calibrate=calibrate,
-        calibration_method="isotonic",
+        calibration_method="platt",
         cal_size=cal_size,
     )
     clf.fit(data.X, data.y)
 
-    if verbose:
-        print(f"Meta-classifier trained with {len(data.feature_columns)} features")
-        print(f"  Class distribution: {data.y.mean():.1%} exceeds baseline (y=1)")
-    
     return clf, data.feature_columns
 
 
@@ -56,7 +50,6 @@ def train_meta_regressor(
         df: pd.DataFrame,
         conformal_cal_size: float = 0.025,
         y_clip: tuple[float, float] = (-2.5, 2.5),
-        verbose: bool = True,
 ) -> tuple[CatBoostRegressionModel, list[str]]:
     """Train a regression model with conformal prediction for exceedance probability.
     
@@ -84,10 +77,6 @@ def train_meta_regressor(
     )
     reg.fit(data.X, data.y, calibrate_threshold=None)
 
-    if verbose:
-        print(f"Meta-regressor trained with {len(data.feature_columns)} features")
-        print(f"  Target (mase_sn - mase) range: [{data.y.min():.2f}, {data.y.max():.2f}]")
-    
     return reg, data.feature_columns
 
 
@@ -143,9 +132,6 @@ def run_hpo_search(
     # Train meta-models on all datasets except target
     meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
     
-    if verbose:
-        print("Training meta-models...")
-    
     meta_classifier, clf_feature_columns = train_meta_classifier(
         meta_train, calibrate=True, verbose=verbose
     )
@@ -195,7 +181,7 @@ def run_hpo_search(
         reg_cb = MetaModelEarlyStopCallback(
             meta_model=meta_regressor,
             feature_columns=reg_feature_columns,
-            stopping_threshold=0.85,
+            stopping_threshold=stopping_threshold,
             exceedance_threshold=0.0,
             every_n_steps=cb_n_steps,
             min_steps=min_steps,

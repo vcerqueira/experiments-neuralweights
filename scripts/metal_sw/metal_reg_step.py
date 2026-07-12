@@ -17,12 +17,12 @@ plot_path = Path('./assets/outputs') / f'metal_reg_step_{model_name}.pdf'
 PERFORMANCE_DIFF = True
 Y_CLIP = (-2.5, 2.5)
 
-metadata = read_all_metadata(
+metadata, _ = read_all_metadata(
     './assets', model_name,
     processed_file=f'./assets/metadata_{model_name}.csv',
 )
 
-steps = np.linspace(start=0, stop=1000, num=11).astype(int).tolist()
+steps = np.linspace(start=0, stop=1500, num=16).astype(int).tolist()
 steps.append(-1)
 
 
@@ -74,7 +74,7 @@ def run_logo_cv_for_step(
 
         reg = CatBoostRegressionModel(
             conformal=True,
-            conformal_cal_size=0.15,
+            conformal_cal_size=0.1,
             calibration_method="platt",
         )
         reg.fit(X.iloc[train_idx], y_tr)

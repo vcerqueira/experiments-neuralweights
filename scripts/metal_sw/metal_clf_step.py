@@ -12,12 +12,12 @@ model_name = 'MLP'
 data_dir = Path('./assets/results')
 plot_path = Path('./assets/outputs') / f'metal_clf_step_{model_name}.pdf'
 
-metadata = read_all_metadata(
+metadata, _ = read_all_metadata(
     './assets', model_name,
     processed_file=f'./assets/metadata_{model_name}.csv',
 )
 
-steps = np.linspace(start=0, stop=1000, num=11).astype(int).tolist()
+steps = np.linspace(start=0, stop=1500, num=16).astype(int).tolist()
 steps.append(-1)
 
 

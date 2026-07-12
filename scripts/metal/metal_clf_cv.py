@@ -34,14 +34,14 @@ groups = data.groups
 print(data.groups.value_counts())
 
 logo = LeaveOneGroupOut()
-fold_results: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+fold_results: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
 fold_scores: list[tuple[str, float, float, float]] = []
 for train_idx, test_idx in logo.split(X, y, groups):
     held_out = groups.iloc[test_idx[0]]
     print(held_out)
 
     clf = CatBoostAUCClassifier(calibrate=True,
-                                calibration_method='isotonic',
+                                calibration_method='platt',
                                 cal_size=0.15)
 
     clf.fit(X.iloc[train_idx], y.iloc[train_idx])
@@ -117,6 +117,7 @@ plot_calibration_curve(
     preds_raw_m3,
     y_prob_calibrated={"platt": preds_m3},
     n_bins=10,
-    title=f"",
+    title=f"Calibration Curve ({model}, {target_dataset})",
     save_path=calib_plot_path_m3,
 )
+print(f"\nCalibration curve saved to {calib_plot_path_m3}")

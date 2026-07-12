@@ -8,7 +8,7 @@ from src.algorithms import CatBoostRegressionModel, CatBoostAUCClassifier
 
 MODEL = 'MLP'
 OUTPUT_DIR = Path('./assets/outputs')
-TOP_N = 20
+TOP_N = 15
 
 metadata, _ = read_all_metadata(
     './assets',
@@ -31,8 +31,8 @@ data_clf = build_meta_xy(
     use_step_as_feature=True,
 )
 
-reg = CatBoostRegressionModel(conformal=True)
-reg.fit(data_reg.X, data_reg.y)
+# reg = CatBoostRegressionModel(conformal=True)
+# reg.fit(data_reg.X, data_reg.y)
 
 clf = CatBoostAUCClassifier(
     calibrate=True,
@@ -41,8 +41,8 @@ clf = CatBoostAUCClassifier(
 )
 clf.fit(data_clf.X, data_clf.y)
 
-importances_reg = reg.feature_importance()
-importances_clf = clf.feature_importance()
+# importances_reg = reg.feature_importance()
+importances_clf = clf.feature_importance().head(TOP_N)
 
 imp_df = importances_clf.reset_index()
 imp_df.columns = ['Feature', 'Importance']
@@ -59,7 +59,7 @@ p = (p9.ggplot(imp_df, p9.aes(x='Feature', y='Importance')) +
          x='',
          y='Importance',
      ) +
-     p9.theme_538(base_family='Palatino', base_size=12) +
+     p9.theme_538(base_family='Palatino', base_size=14) +
      p9.theme(
          plot_margin=0.025,
          panel_background=p9.element_rect(fill='white'),
@@ -67,8 +67,8 @@ p = (p9.ggplot(imp_df, p9.aes(x='Feature', y='Importance')) +
          legend_box_background=p9.element_rect(fill='white'),
          strip_background=p9.element_rect(fill='white'),
          legend_background=p9.element_rect(fill='white'),
-         axis_text_y=p9.element_text(size=9),
+         axis_text_y=p9.element_text(size=13),
          legend_title=p9.element_blank(),
      ))
 
-p.save(OUTPUT_DIR / f'feature_importance_{MODEL}.pdf')
+p.save(OUTPUT_DIR / f'feature_importance_{MODEL}.pdf', height=4, width=4)

@@ -13,8 +13,7 @@ from src.algorithms import CatBoostRegressionModel
 from src.plots import plot_calibration_curve
 
 model = 'MLP'
-data_dir = Path('./assets/results')
-plot_path = Path("./assets/outputs") / f"metal_reg_importance_{model}_logo.pdf"
+results_dir = Path('./assets/results_cv')
 PERFORMANCE_DIFF = True
 Y_CLIP = (-2.5, 2.5)
 # Y_CLIP = (0, 4)
@@ -22,7 +21,7 @@ Y_CLIP = (-2.5, 2.5)
 metadata, category_mappings = read_all_metadata(
     './assets', model,
     processed_file=f'./assets/metadata_{model}.csv',
-    sample_n=10000
+    sample_n=200000
 )
 
 data = build_meta_xy(metadata,
@@ -49,7 +48,7 @@ for train_idx, test_idx in logo.split(X, y, groups):
     y_tr = y.iloc[train_idx].to_numpy()
     y_ts = y.iloc[test_idx].to_numpy()
 
-    reg = CatBoostRegressionModel(conformal=True, conformal_cal_size=0.25)
+    reg = CatBoostRegressionModel(conformal=True, conformal_cal_size=0.1)
     reg.fit(X.iloc[train_idx], y_tr)
 
     preds = reg.predict(X.iloc[test_idx])
@@ -112,3 +111,11 @@ plot_calibration_curve(
     save_path=calib_plot_path,
     raw_label="Raw (conformal)",
 )
+
+
+metrics_df.set_index(['dataset'], inplace=True)
+
+metrics_df.loc['average'] = metrics_df.mean(numeric_only=True)
+metrics_df.loc['std'] = metrics_df.std(numeric_only=True)
+
+metrics_df.to_csv(results_dir / f'cv_reg_scores_{model}.csv')

@@ -11,11 +11,9 @@ from src.algorithms.binary import CatBoostAUCClassifier
 from src.plots import plot_calibration_curve
 
 model = 'MLP'
-data_dir = Path('./assets/results')
-plot_path = Path("./assets/outputs") / f"metal_clf_roc_{model}_logo.pdf"
+results_dir = Path('./assets/results_cv')
 plot_path_m3 = Path("./assets/outputs") / f"metal_clf_roc_{model}_monash_m3_monthly_logo.pdf"
-calib_plot_path_m3 = Path("./assets/outputs") / f"metal_clf_calibration_{model}_monash_m3_monthly_logo.pdf"
-target_dataset = 'monash_m3_monthly'
+# calib_plot_path_m3 = Path("./assets/outputs") / f"metal_clf_calibration_{model}_monash_m3_monthly_logo.pdf"
 
 metadata, category_mappings = read_all_metadata(
     './assets', model,
@@ -63,9 +61,8 @@ for train_idx, test_idx in logo.split(X, y, groups):
     fold_scores.append((held_out, fold_auc, fold_ll, fold_br))
     print(f"{held_out}: AUC = {fold_auc:.3f}")
 
-y_m3, preds_raw_m3, preds_m3 = fold_results[target_dataset]
+y_m3, preds_raw_m3, preds_m3 = fold_results['monash_m3_monthly']
 auc_m3 = roc_auc_score(y_m3, preds_m3)
-print(f"{target_dataset} LOO AUC = {auc_m3:.3f}")
 
 fpr, tpr, _ = roc_curve(y_m3, preds_m3)
 roc_df = pd.DataFrame({'FPR': fpr, 'TPR': tpr})
@@ -83,7 +80,7 @@ p = (
     roc_df,
     p9.aes(x='FPR', y='TPR'),
     color='#2563eb',
-    size=1.2,
+    size=1.7,
 )
         + p9.labs(
     x='False Positive Rate',
@@ -105,19 +102,26 @@ p = (
 )
 )
 
-p.save(plot_path_m3, width=7, height=7, verbose=False)
+p.save(plot_path_m3, width=5, height=5, verbose=False)
 
 auc_df = pd.DataFrame(fold_scores, columns=['dataset', 'auc', 'll', 'brier'])
 auc_df.mean(numeric_only=True)
 auc_df.std(numeric_only=True)
 print(auc_df.mean(numeric_only=True))
 
-plot_calibration_curve(
-    y_m3,
-    preds_raw_m3,
-    y_prob_calibrated={"platt": preds_m3},
-    n_bins=10,
-    title=f"Calibration Curve ({model}, {target_dataset})",
-    save_path=calib_plot_path_m3,
-)
-print(f"\nCalibration curve saved to {calib_plot_path_m3}")
+auc_df.set_index(['dataset'], inplace=True)
+
+auc_df.loc['average'] = auc_df.mean(numeric_only=True)
+auc_df.loc['std'] = auc_df.std(numeric_only=True)
+
+auc_df.to_csv(results_dir / f'cv_clf_scores_{model}.csv')
+
+# plot_calibration_curve(
+#     y_m3,
+#     preds_raw_m3,
+#     y_prob_calibrated={"platt": preds_m3},
+#     n_bins=10,
+#     title="",
+#     save_path=calib_plot_path_m3,
+# )
+# print(f"\nCalibration curve saved to {calib_plot_path_m3}")

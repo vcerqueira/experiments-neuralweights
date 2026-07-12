@@ -57,4 +57,4 @@ for feature in TOP_FEATURES:
     )
 
     save_path = OUTPUT_DIR / f'density_{feature}.pdf'
-    p.save(save_path, width=7, height=7)
+    p.save(save_path, width=5, height=4)

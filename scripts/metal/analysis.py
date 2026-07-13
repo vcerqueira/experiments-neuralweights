@@ -1,0 +1,1 @@
+# criar tabela com 4 colunas: dataset, auc mlp, auc nhits, auc patchtst

@@ -20,6 +20,7 @@ pd.set_option('display.max_rows', None)
 STOPPING_THRESHOLD = 0.70
 N_TRIALS = 30
 CB_N_STEPS = 100
+MIN_CB_N_STEPS = 301
 MODEL_NAME = 'MLP'
 OUTPUT_DIR = Path('./assets/results_search')
 
@@ -76,6 +77,7 @@ for i, target_dataset in enumerate(all_datasets):
         n_trials=N_TRIALS,
         stopping_threshold=STOPPING_THRESHOLD,
         cb_n_steps=CB_N_STEPS,
+        min_steps=MIN_CB_N_STEPS,
         verbose=True,
     )
 

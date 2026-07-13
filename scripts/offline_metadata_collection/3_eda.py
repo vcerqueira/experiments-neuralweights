@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pandas as pd
 import plotnine as p9
-from plotnine.themes.themeable import legend_position
 
 from src.utils import read_all_metadata
 
@@ -25,10 +24,6 @@ metadata['class'] = pd.Categorical(metadata['class'],
                                                'Worse than Seasonal Naive'])
 
 for feature in TOP_FEATURES:
-    if feature not in metadata.columns:
-        print(f"  Skipping {feature} (not in columns)")
-        continue
-
     df_plot = metadata[[feature, 'class']].dropna()
 
     p = (
@@ -49,7 +44,6 @@ for feature in TOP_FEATURES:
                        legend_box_background=p9.element_rect(fill='white'),
                        strip_background=p9.element_rect(fill='white'),
                        legend_background=p9.element_rect(fill='white'),
-                       # axis_text_x=p9.element_text(size=9, angle=0),
                        axis_text_y=p9.element_text(size=9),
                        legend_position='top',
                        legend_title=p9.element_blank())

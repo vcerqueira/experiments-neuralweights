@@ -14,7 +14,6 @@ metadata, _ = read_all_metadata(
     './assets',
     MODEL,
     processed_file=f'./assets/metadata_{MODEL}.csv',
-    # sample_n=100000
 )
 
 data_reg = build_meta_xy(

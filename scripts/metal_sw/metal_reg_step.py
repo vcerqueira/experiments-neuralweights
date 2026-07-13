@@ -33,7 +33,6 @@ def run_logo_cv_for_step(
         performance_diff: bool = True,
         y_clip: tuple[float, float] | None = None,
 ) -> dict[str, float]:
-    """Run leave-one-dataset-out CV for regression at a given training step."""
     df_step = metadata.query(f'step == {step}').reset_index(drop=True)
 
     if df_step.empty:
@@ -126,6 +125,6 @@ results_df = pd.DataFrame(results)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-print('\n', results_df)
+print(results_df)
 
 results_df.to_csv(results_dir / f'metal_reg_step_{model_name}.csv', index=False)

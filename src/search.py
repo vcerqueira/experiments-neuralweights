@@ -133,13 +133,13 @@ def run_hpo_search(
     meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
     
     meta_classifier, clf_feature_columns = train_meta_classifier(
-        meta_train, calibrate=True, verbose=verbose
+        meta_train, calibrate=True
     )
     meta_regressor, reg_feature_columns = train_meta_regressor(
-        meta_train, verbose=verbose
+        meta_train
     )
     
-    # Compute baseline MASE on validation
+    # baseline MASE on validation
     sf = StatsForecast(models=[SeasonalNaive(season_length=seas_len)], freq=freq)
     sf.fit(train)
     fcst_sf = sf.predict(h=horizon)
@@ -147,13 +147,9 @@ def run_hpo_search(
     holdout_sn = valid.merge(fcst_sf, how='left', on=['unique_id', 'ds'])
     mase_sn = mase_func(holdout_sn, models=['SeasonalNaive'], train_df=train).mean(numeric_only=True)['SeasonalNaive']
     
-    if verbose:
-        print(f"\nBaseline validation MASE (SeasonalNaive): {mase_sn:.4f}")
-    
     search_results = []
     config_registry = {}
     configs_tried = 0
-    
     for config_sample in config_list:
         if configs_tried >= n_trials:
             break

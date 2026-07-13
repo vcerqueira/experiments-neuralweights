@@ -108,13 +108,6 @@ if __name__ == '__main__':
 
             cb = WeightWatcherCallback.get_cb(nf)
 
-            # cbs_df = pd.DataFrame(cb.summaries)
-            # cbs_df['model'] = model_nm
-            # cbs_df['config_id'] = cfg_id
-            # cbs_df['dataset'] = target
-            # cbs_df['mase'] = err[model_nm]
-            # cbs_df['mase_sn'] = err['SeasonalNaive']
-
             cbd_df = pd.concat(cb.details).reset_index(drop=True)
             cbd_df['model'] = model_nm
             cbd_df['config_id'] = cfg_id

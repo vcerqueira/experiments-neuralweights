@@ -21,7 +21,7 @@ Y_CLIP = (-2.5, 2.5)
 metadata, category_mappings = read_all_metadata(
     './assets', model,
     processed_file=f'./assets/metadata_{model}.csv',
-    sample_n=200000
+    # sample_n=200000
 )
 
 data = build_meta_xy(metadata,

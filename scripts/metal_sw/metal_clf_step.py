@@ -9,7 +9,7 @@ from src.utils import read_all_metadata, build_meta_xy
 from src.algorithms import CatBoostAUCClassifier
 
 model_name = 'MLP'
-data_dir = Path('./assets/results')
+results_dir = Path('./assets/results_cv')
 plot_path = Path('./assets/outputs') / f'metal_clf_step_{model_name}.pdf'
 
 metadata, _ = read_all_metadata(
@@ -90,8 +90,6 @@ for step in steps:
         step=step,
     )
     results.append(metrics)
-    print(f"  AUC = {metrics['auc_mean']:.3f} ± {metrics['auc_std']:.3f}, "
-          f"LogLoss = {metrics['ll_mean']:.3f}, Brier = {metrics['brier_mean']:.3f}")
 
 results_df = pd.DataFrame(results)
 
@@ -99,3 +97,5 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
 print('\n', results_df)
+
+results_df.to_csv(results_dir / f'metal_clf_step_{model_name}.csv', index=False)

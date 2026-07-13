@@ -12,6 +12,7 @@ from src.utils import read_all_metadata, build_meta_xy, corr_coef
 from src.algorithms import CatBoostRegressionModel
 
 model_name = 'MLP'
+results_dir = Path('./assets/results_cv')
 plot_path = Path('./assets/outputs') / f'metal_reg_step_{model_name}.pdf'
 
 PERFORMANCE_DIFF = True
@@ -126,3 +127,5 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
 print('\n', results_df)
+
+results_df.to_csv(results_dir / f'metal_reg_step_{model_name}.csv', index=False)

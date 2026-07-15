@@ -30,8 +30,6 @@ metadata, category_mappings = read_all_metadata(
 
 all_datasets = sorted(metadata['dataset'].unique().tolist())
 
-# all_datasets = [all_datasets[2]]
-
 config_pool = NEURAL_CONFIG_POOL[MODEL_NAME]
 config_list_master = ConfigSampler.generate_samples(
     config_pool=config_pool,

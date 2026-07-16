@@ -24,9 +24,9 @@ class ModelsConfig:
     MODEL_CLASSES = {
         # 'KAN': KAN,
         'MLP': MLP,
-        # 'NHITS': NHITS,
+        'NHITS': NHITS,
         # 'TFT': TFT,
-        # 'PatchTST': PatchTST,
+        'PatchTST': PatchTST,
         # 'GRU': GRU,
         # 'Autoformer': Autoformer,
         # 'Informer': Informer,

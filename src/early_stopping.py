@@ -100,9 +100,14 @@ class MetaModelEarlyStopCallback(Callback):
             features_dict = {col: smr_stats.get(col, np.nan) for col in self.feature_columns}
 
             for col, mapping in self.category_mappings.items():
-                if col in features_dict and features_dict[col] in mapping:
-                    features_dict[col] = mapping[features_dict[col]]
-                elif col in features_dict and isinstance(features_dict[col], str):
+                col_val = features_dict[col]
+                is_str = isinstance(features_dict[col], str)
+                if isinstance(col_val, list):
+                    col_val = str(col_val)
+
+                if col in features_dict and col_val in mapping:
+                    features_dict[col] = mapping[col_val]
+                elif col in features_dict and is_str:
                     features_dict[col] = -1
 
             features_df = pd.DataFrame([features_dict])
@@ -249,9 +254,14 @@ class ClassifierEarlyStopCallback(Callback):
             features_dict = {col: smr_stats.get(col, np.nan) for col in self.feature_columns}
 
             for col, mapping in self.category_mappings.items():
-                if col in features_dict and features_dict[col] in mapping:
-                    features_dict[col] = mapping[features_dict[col]]
-                elif col in features_dict and isinstance(features_dict[col], str):
+                col_val = features_dict[col]
+                is_str = isinstance(features_dict[col], str)
+                if isinstance(col_val, list):
+                    col_val = str(col_val)
+
+                if col in features_dict and col_val in mapping:
+                    features_dict[col] = mapping[col_val]
+                elif col in features_dict and is_str:
                     features_dict[col] = -1
 
             features_df = pd.DataFrame([features_dict])

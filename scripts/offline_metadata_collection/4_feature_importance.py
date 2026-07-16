@@ -6,7 +6,7 @@ import plotnine as p9
 from src.utils import read_all_metadata, build_meta_xy
 from src.algorithms import CatBoostRegressionModel, CatBoostAUCClassifier
 
-MODEL = 'MLP'
+MODEL = 'PatchTST'
 OUTPUT_DIR = Path('./assets/outputs')
 TOP_N = 15
 

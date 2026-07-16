@@ -10,10 +10,10 @@ from src.utils import read_all_metadata, build_meta_xy
 from src.algorithms.binary import CatBoostAUCClassifier
 from src.plots import plot_calibration_curve
 
-model = 'MLP'
+model = 'PatchTST'
 results_dir = Path('./assets/results_cv')
 plot_path_m3 = Path("./assets/outputs") / f"metal_clf_roc_{model}_monash_m3_monthly_logo.pdf"
-# calib_plot_path_m3 = Path("./assets/outputs") / f"metal_clf_calibration_{model}_monash_m3_monthly_logo.pdf"
+calib_plot_path_m3 = Path("./assets/outputs") / f"metal_clf_calibration_{model}_monash_m3_monthly_logo.pdf"
 
 metadata, category_mappings = read_all_metadata(
     './assets', model,
@@ -116,12 +116,11 @@ auc_df.loc['std'] = auc_df.std(numeric_only=True)
 
 auc_df.to_csv(results_dir / f'cv_clf_scores_{model}.csv')
 
-# plot_calibration_curve(
-#     y_m3,
-#     preds_raw_m3,
-#     y_prob_calibrated={"platt": preds_m3},
-#     n_bins=10,
-#     title="",
-#     save_path=calib_plot_path_m3,
-# )
-# print(f"\nCalibration curve saved to {calib_plot_path_m3}")
+plot_calibration_curve(
+    y_m3,
+    preds_raw_m3,
+    y_prob_calibrated={"platt": preds_m3},
+    n_bins=10,
+    title="",
+    save_path=calib_plot_path_m3,
+)

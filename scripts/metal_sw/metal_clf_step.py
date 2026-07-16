@@ -8,7 +8,7 @@ from sklearn.model_selection import LeaveOneGroupOut
 from src.utils import read_all_metadata, build_meta_xy
 from src.algorithms import CatBoostAUCClassifier
 
-model_name = 'MLP'
+model_name = 'PatchTST'
 results_dir = Path('./assets/results_cv')
 plot_path = Path('./assets/outputs') / f'metal_clf_step_{model_name}.pdf'
 

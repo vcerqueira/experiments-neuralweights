@@ -12,7 +12,7 @@ from src.utils import read_all_metadata, corr_coef, build_meta_xy
 from src.algorithms import CatBoostRegressionModel
 from src.plots import plot_calibration_curve
 
-model = 'MLP'
+model = 'NHITS'
 results_dir = Path('./assets/results_cv')
 PERFORMANCE_DIFF = True
 Y_CLIP = (-2.5, 2.5)

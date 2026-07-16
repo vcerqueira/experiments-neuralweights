@@ -26,7 +26,6 @@ metadata, category_mappings = read_all_metadata(
     './assets',
     MODEL_NAME,
     processed_file=f'./assets/metadata_{MODEL_NAME}.csv',
-    # sample_n=200000,
 )
 
 all_datasets = sorted(metadata['dataset'].unique().tolist())
@@ -115,7 +114,7 @@ for i, target_dataset in enumerate(all_datasets):
 all_search_df = pd.concat(all_search_results, ignore_index=True)
 all_test_df = pd.DataFrame(all_test_results)
 
-search_path = OUTPUT_DIR / f"search_{MODEL_NAME}.csv"
-test_path = OUTPUT_DIR / f"test_{MODEL_NAME}.csv"
+search_path = OUTPUT_DIR / f"controlled_search_{MODEL_NAME}_ind.csv"
+test_path = OUTPUT_DIR / f"controlled_test_{MODEL_NAME}_ind.csv"
 all_search_df.to_csv(search_path, index=False)
 all_test_df.to_csv(test_path, index=False)

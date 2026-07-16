@@ -1,5 +1,7 @@
 from typing import Optional, List, Union, Dict
 
+
+from neuralforecast.auto import AutoMLP
 from neuralforecast.models import (GRU,
                                    KAN,
                                    NBEATS,

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import plotnine as p9
 
-model_name = 'MLP'
+model_name = 'PatchTST'
 results_dir = Path('./assets/results_cv')
 plot_path = Path('./assets/outputs') / f'metal_clf_step_{model_name}.pdf'
 

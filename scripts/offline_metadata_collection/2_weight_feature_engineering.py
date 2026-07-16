@@ -3,11 +3,11 @@ from pathlib import Path
 from src.utils import read_all_metadata
 from src.weights.weight_summarizer import NeuralWeightsFeatureEng
 
-model_name = 'NHITS'
+model_name = 'PatchTST'
 data_dir = Path('../neuralweights-files/results')
-print(data_dir.absolute())
+# print(data_dir.absolute())
 
-metadata = read_all_metadata(data_dir, model_name, detailed=True)
+metadata, _ = read_all_metadata(data_dir, model_name, detailed=True)
 
 # metadata_grouped = metadata.groupby(['dataset', 'config_id', 'model'])
 ## example group

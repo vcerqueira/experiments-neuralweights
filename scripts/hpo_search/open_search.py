@@ -23,10 +23,10 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-STOPPING_THRESHOLD = 0.70
+STOPPING_THRESHOLD = 0.70 # here
 N_TRIALS = 50
 CB_N_STEPS = 100
-MIN_CB_N_STEPS = 50
+MIN_CB_N_STEPS = 50 # here
 MODEL_NAME = 'PatchTST'
 OUTPUT_DIR = Path('./assets/results_search')
 PARTIAL_OUTPUT_DIR = Path('./assets/results_search_partial')

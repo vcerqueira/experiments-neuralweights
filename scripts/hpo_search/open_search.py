@@ -27,7 +27,7 @@ STOPPING_THRESHOLD = 0.70
 N_TRIALS = 50
 CB_N_STEPS = 100
 MIN_CB_N_STEPS = 50
-MODEL_NAME = 'MLP'
+MODEL_NAME = 'PatchTST'
 OUTPUT_DIR = Path('./assets/results_search')
 PARTIAL_OUTPUT_DIR = Path('./assets/results_search_partial')
 
@@ -221,7 +221,6 @@ for i, target_dataset in enumerate(all_datasets):
     PARTIAL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     partial_path = PARTIAL_OUTPUT_DIR / f"open_test_{MODEL_NAME}_{target_dataset}.csv"
     pd.DataFrame([test_results]).to_csv(partial_path, index=False)
-    print(f"Partial results saved to {partial_path}")
 
 all_test_df = pd.DataFrame(all_test_results)
 

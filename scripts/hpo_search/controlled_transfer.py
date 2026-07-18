@@ -18,7 +18,7 @@ STOPPING_THRESHOLD = 0.70
 N_TRIALS = 30
 CB_N_STEPS = 100
 MIN_CB_N_STEPS = 1
-MODEL_NAME = 'NHITS'
+MODEL_NAME = 'PatchTST'
 OUTPUT_DIR = Path('./assets/results_search')
 
 print("Loading metadata...")

@@ -23,10 +23,10 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-STOPPING_THRESHOLD = 0.70 # here
+STOPPING_THRESHOLD = 0.80  # here
 N_TRIALS = 50
 CB_N_STEPS = 100
-MIN_CB_N_STEPS = 50 # here
+MIN_CB_N_STEPS = 301  # here
 MODEL_NAME = 'PatchTST'
 OUTPUT_DIR = Path('./assets/results_search')
 PARTIAL_OUTPUT_DIR = Path('./assets/results_search_partial')
@@ -181,11 +181,16 @@ for i, target_dataset in enumerate(all_datasets):
         alias='TPE+Med+WASP'
     )
 
-    models = [randoms,
-              randoms_wasp,
-              tpe_wasp,
-              tpe, tpe_med, tpe_sh,
-              tpe_hb, tpe_wasp_med]
+    models = [
+        # randoms,
+        # randoms_wasp,
+        tpe_wasp,
+        tpe,
+        # tpe_med,
+        # tpe_sh,
+        # tpe_hb,
+        # tpe_wasp_med
+    ]
 
     nf = NeuralForecast(models=models,
                         freq=freq)

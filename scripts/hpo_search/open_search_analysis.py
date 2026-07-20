@@ -1,6 +1,6 @@
 import pandas as pd
 
-model = 'PatchTST'
+model = 'MLP'
 df1=pd.read_csv(f'assets/results_search_partial/open_test_{model}_monash_hospital.csv')
 df2=pd.read_csv(f'assets/results_search_partial/open_test_{model}_monash_m1_monthly.csv')
 df3=pd.read_csv(f'assets/results_search_partial/open_test_{model}_monash_m1_quarterly.csv')

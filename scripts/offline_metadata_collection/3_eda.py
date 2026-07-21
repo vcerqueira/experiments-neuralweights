@@ -5,7 +5,7 @@ import plotnine as p9
 
 from src.utils import read_all_metadata
 
-MODEL_NAME = 'MLP'
+MODEL_NAME = 'PatchTST'
 OUTPUT_DIR = Path('./assets/outputs')
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -22,6 +22,8 @@ metadata['class'] = (metadata['mase'] < metadata['mase_sn']).map({True: 'Better 
 metadata['class'] = pd.Categorical(metadata['class'],
                                    categories=['Better than Seasonal Naive',
                                                'Worse than Seasonal Naive'])
+
+print(metadata['class'].value_counts(normalize=True))
 
 for feature in TOP_FEATURES:
     df_plot = metadata[[feature, 'class']].dropna()

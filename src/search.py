@@ -38,7 +38,7 @@ def train_meta_classifier(
 
     clf = CatBoostAUCClassifier(
         calibrate=calibrate,
-        calibration_method="platt",
+        calibration_method="isotonic",
         cal_size=cal_size,
     )
     clf.fit(data.X, data.y)

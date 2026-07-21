@@ -23,11 +23,11 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-STOPPING_THRESHOLD = 0.90  # here
+STOPPING_THRESHOLD = 0.99  # here
 N_TRIALS = 50
 CB_N_STEPS = 100
-MIN_CB_N_STEPS = 501  # here
-MODEL_NAME = 'NHITS'
+MIN_CB_N_STEPS = 1001  # here
+MODEL_NAME = 'PatchTST'
 OUTPUT_DIR = Path('./assets/results_search')
 PARTIAL_OUTPUT_DIR = Path('./assets/results_search_partial')
 
@@ -57,7 +57,9 @@ for i, target_dataset in enumerate(all_datasets):
     )
 
     meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True).copy()
-    meta_classifier, clf_feature_columns = train_meta_classifier(meta_train, calibrate=True)
+    meta_classifier, clf_feature_columns = train_meta_classifier(meta_train,
+                                                                 calibrate=True,
+                                                                 cal_size=0.5)
 
     mase_func = partial(mase, seasonality=seas_len)
 
@@ -231,4 +233,3 @@ all_test_df = pd.DataFrame(all_test_results)
 
 test_path = OUTPUT_DIR / f"open_test_{MODEL_NAME}.csv"
 all_test_df.to_csv(test_path, index=False)
-print(f"\nFinal aggregated results saved to {test_path}")

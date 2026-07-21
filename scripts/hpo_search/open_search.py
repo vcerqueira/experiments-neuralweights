@@ -23,11 +23,11 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-STOPPING_THRESHOLD = 0.99  # here
-N_TRIALS = 50
+STOPPING_THRESHOLD = 0.9  # here
+N_TRIALS = 30
 CB_N_STEPS = 100
-MIN_CB_N_STEPS = 1001  # here
-MODEL_NAME = 'PatchTST'
+MIN_CB_N_STEPS = 999  # here
+MODEL_NAME = 'MLP'
 OUTPUT_DIR = Path('./assets/results_search')
 PARTIAL_OUTPUT_DIR = Path('./assets/results_search_partial')
 
@@ -59,7 +59,7 @@ for i, target_dataset in enumerate(all_datasets):
     meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True).copy()
     meta_classifier, clf_feature_columns = train_meta_classifier(meta_train,
                                                                  calibrate=True,
-                                                                 cal_size=0.5)
+                                                                 cal_size=0.4)
 
     mase_func = partial(mase, seasonality=seas_len)
 
@@ -68,8 +68,11 @@ for i, target_dataset in enumerate(all_datasets):
     step_accumulators = {
         'RS': StepAccumulator(),
         'RS+WASP': StepAccumulator(),
-        'TPE+WASP': StepAccumulator(),
+        'RS+Med': StepAccumulator(),
+        'RS+SH': StepAccumulator(),
+        'RS+HB': StepAccumulator(),
         'TPE': StepAccumulator(),
+        'TPE+WASP': StepAccumulator(),
         'TPE+Med': StepAccumulator(),
         'TPE+SH': StepAccumulator(),
         'TPE+HB': StepAccumulator(),
@@ -79,7 +82,7 @@ for i, target_dataset in enumerate(all_datasets):
     config_with_counter = {
         alias: ConfigWithStepCounter(config_sampler, acc)
         for alias, acc in step_accumulators.items()
-        if alias not in ['RS+WASP', 'TPE+WASP', 'TPE+Med+WASP']
+        if alias not in ['RS+WASP', 'TPE+WASP']
     }
 
     config_wasp = {
@@ -95,7 +98,7 @@ for i, target_dataset in enumerate(all_datasets):
             verbose=True,
             step_accumulator=step_accumulators[alias],
         )
-        for alias in ['RS+WASP', 'TPE+WASP', 'TPE+Med+WASP']
+        for alias in ['RS+WASP', 'TPE+WASP']
     }
 
     auto_base_args = {
@@ -122,6 +125,40 @@ for i, target_dataset in enumerate(all_datasets):
         **auto_base_args,
         alias='RS+WASP'
     )
+
+    # rs+median
+    randoms_med = AutoModelClass(
+        config=config_with_counter['RS+Med'],
+        search_alg=optuna.samplers.RandomSampler(seed=42),
+        optuna_options=OptunaOptions(
+            create_study_kwargs={"pruner": optuna.pruners.MedianPruner()}
+        ),
+        **auto_base_args,
+        alias='RS+Med'
+    )
+
+    # rs+sh
+    randoms_sh = AutoModelClass(
+        config=config_with_counter['RS+SH'],
+        search_alg=optuna.samplers.RandomSampler(seed=42),
+        optuna_options=OptunaOptions(
+            create_study_kwargs={"pruner": optuna.pruners.SuccessiveHalvingPruner()}
+        ),
+        **auto_base_args,
+        alias='RS+SH'
+    )
+
+    # rs+hyperband
+    randoms_hb = AutoModelClass(
+        config=config_with_counter['RS+HB'],
+        search_alg=optuna.samplers.RandomSampler(seed=42),
+        optuna_options=OptunaOptions(
+            create_study_kwargs={"pruner": optuna.pruners.HyperbandPruner()}
+        ),
+        **auto_base_args,
+        alias='RS+HB'
+    )
+
 
     # TPE+WASP
     tpe_wasp = AutoModelClass(
@@ -172,34 +209,22 @@ for i, target_dataset in enumerate(all_datasets):
         alias='TPE+HB'
     )
 
-    # TPE+WASP+MedianPruner
-    tpe_wasp_med = AutoModelClass(
-        config=config_wasp['TPE+Med+WASP'],
-        search_alg=optuna.samplers.TPESampler(seed=42),
-        optuna_options=OptunaOptions(
-            create_study_kwargs={"pruner": optuna.pruners.MedianPruner()}
-        ),
-        **auto_base_args,
-        alias='TPE+Med+WASP'
-    )
 
     models = [
-        # randoms,
-        # randoms_wasp,
-        tpe_wasp,
+        randoms,
+        randoms_wasp,
+        randoms_med,
+        randoms_sh,
+        randoms_hb,
         tpe,
-        # tpe_med,
-        # tpe_sh,
-        # tpe_hb,
-        # tpe_wasp_med
+        tpe_wasp,
+        tpe_med,
+        tpe_sh,
+        tpe_hb,
     ]
 
-    nf = NeuralForecast(models=models,
-                        freq=freq)
+    nf = NeuralForecast(models=models, freq=freq)
     nf.fit(df=train, val_size=horizon)
-
-    # get cb info
-    # nf.models[0].trainer
 
     fcst = nf.predict()
     fcst['ds'] = test['ds']

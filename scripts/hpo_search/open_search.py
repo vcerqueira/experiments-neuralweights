@@ -78,7 +78,6 @@ for i, target_dataset in enumerate(all_datasets):
         'TPE+Med': StepAccumulator(),
         'TPE+SH': StepAccumulator(),
         'TPE+HB': StepAccumulator(),
-        'TPE+Med+WASP': StepAccumulator(),
     }
 
     # Variants without pruner: only step counter

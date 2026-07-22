@@ -2,13 +2,40 @@ import warnings
 from typing import Callable, Optional
 
 import optuna
-from optuna.integration import PyTorchLightningPruningCallback
 from pytorch_lightning.callbacks import Callback
 
 from src.early_stopping import ClassifierEarlyStopCallback
 
 warnings.filterwarnings('ignore')
 optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+
+class TrialRegistry:
+    """Class-level registry for Optuna trials to survive callback deep-copying.
+    
+    PyTorch Lightning deep-copies callbacks, breaking references to trial objects.
+    This registry stores trials by ID so callbacks can look them up at runtime.
+    """
+    _trials: dict[str, optuna.Trial] = {}
+    _counter = 0
+    
+    @classmethod
+    def register(cls, trial: optuna.Trial) -> str:
+        """Register a trial and return its ID."""
+        cls._counter += 1
+        trial_id = f"trial_{cls._counter}"
+        cls._trials[trial_id] = trial
+        return trial_id
+    
+    @classmethod
+    def get(cls, trial_id: str) -> optuna.Trial:
+        """Retrieve trial by ID."""
+        return cls._trials[trial_id]
+    
+    @classmethod
+    def remove(cls, trial_id: str):
+        """Remove trial from registry (cleanup)."""
+        cls._trials.pop(trial_id, None)
 
 
 class StepAccumulator:
@@ -76,6 +103,52 @@ class StepCounterCallback(Callback):
         self._current_trial_steps = 0
 
 
+class OptunaPruningCallback(Callback):
+    """PyTorch Lightning callback for Optuna pruning that properly inherits from Callback.
+    
+    Reports intermediate validation metrics to Optuna and handles pruning decisions.
+    Uses TrialRegistry to look up the trial at runtime, surviving deep-copy.
+    
+    Args:
+        trial_id: ID of the trial in TrialRegistry.
+        monitor: Metric name to monitor for pruning (e.g., 'valid_loss').
+    
+    Example:
+        >>> trial_id = TrialRegistry.register(trial)
+        >>> callback = OptunaPruningCallback(trial_id, monitor='valid_loss')
+    """
+    
+    def __init__(self, trial_id: str, monitor: str = 'valid_loss'):
+        super().__init__()
+        self.name = 'optuna_pruning'
+        self.trial_id = trial_id
+        self.monitor = monitor
+        self._epoch = 0
+    
+    def on_validation_end(self, trainer, pl_module):
+        # Skip sanity check validation
+        if trainer.sanity_checking:
+            return
+        
+        # Get current metric value
+        current_value = trainer.callback_metrics.get(self.monitor)
+        if current_value is None:
+            return
+        
+        try:
+            trial = TrialRegistry.get(self.trial_id)
+            trial.report(float(current_value), self._epoch)
+            self._epoch += 1
+            
+            # Check if trial should be pruned
+            if trial.should_prune():
+                message = f"Trial was pruned at epoch {self._epoch}."
+                raise optuna.TrialPruned(message)
+        except (KeyError, RuntimeError, optuna.exceptions.UpdateFinishedTrialError):
+            # Trial not found, finished, or otherwise unavailable - skip silently
+            pass
+
+
 class ConfigWithStepCounter:
     """Wrapper that adds a step counter callback to any config sampler.
     
@@ -115,7 +188,7 @@ class ConfigWithPruningCallback:
     
     For Optuna pruners (MedianPruner, SuccessiveHalvingPruner, HyperbandPruner) to work,
     intermediate values must be reported during training via trial.report(). This wrapper
-    injects PyTorchLightningPruningCallback which handles this automatically.
+    injects OptunaPruningCallback which handles this automatically.
     
     Args:
         config_sampler: Callable that takes an Optuna trial and returns a config dict.
@@ -145,8 +218,11 @@ class ConfigWithPruningCallback:
     def __call__(self, trial: optuna.Trial) -> dict:
         config = self.config_sampler(trial)
         
+        # Register trial in class-level registry to survive deep-copying
+        trial_id = TrialRegistry.register(trial)
+        
         step_counter = StepCounterCallback(self.accumulator_id)
-        pruning_callback = PyTorchLightningPruningCallback(trial, monitor=self.monitor)
+        pruning_callback = OptunaPruningCallback(trial_id, monitor=self.monitor)
         
         existing_callbacks = config.get("callbacks", [])
         config["callbacks"] = existing_callbacks + [step_counter, pruning_callback]

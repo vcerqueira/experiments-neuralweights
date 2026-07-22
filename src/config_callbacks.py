@@ -2,6 +2,7 @@ import warnings
 from typing import Callable, Optional
 
 import optuna
+from optuna.integration import PyTorchLightningPruningCallback
 from pytorch_lightning.callbacks import Callback
 
 from src.early_stopping import ClassifierEarlyStopCallback
@@ -106,6 +107,49 @@ class ConfigWithStepCounter:
         step_counter = StepCounterCallback(self.accumulator_id)
         existing_callbacks = config.get("callbacks", [])
         config["callbacks"] = existing_callbacks + [step_counter]
+        return config
+
+
+class ConfigWithPruningCallback:
+    """Wrapper that adds Optuna pruning callback and step counter to a config sampler.
+    
+    For Optuna pruners (MedianPruner, SuccessiveHalvingPruner, HyperbandPruner) to work,
+    intermediate values must be reported during training via trial.report(). This wrapper
+    injects PyTorchLightningPruningCallback which handles this automatically.
+    
+    Args:
+        config_sampler: Callable that takes an Optuna trial and returns a config dict.
+        accumulator: StepAccumulator to track steps across all trials.
+        monitor: Metric name to monitor for pruning (default: 'valid_loss').
+    
+    Example:
+        >>> accumulator = StepAccumulator()
+        >>> config_fn = ConfigWithPruningCallback(config_sampler, accumulator, monitor='valid_loss')
+        >>> auto_model = AutoMLP(
+        ...     config=config_fn,
+        ...     optuna_options=OptunaOptions(create_study_kwargs={"pruner": MedianPruner()}),
+        ...     ...
+        ... )
+    """
+
+    def __init__(
+            self,
+            config_sampler: Callable[[optuna.Trial], dict],
+            accumulator: StepAccumulator,
+            monitor: str = 'valid_loss',
+    ):
+        self.config_sampler = config_sampler
+        self.accumulator_id = accumulator.id
+        self.monitor = monitor
+
+    def __call__(self, trial: optuna.Trial) -> dict:
+        config = self.config_sampler(trial)
+        
+        step_counter = StepCounterCallback(self.accumulator_id)
+        pruning_callback = PyTorchLightningPruningCallback(trial, monitor=self.monitor)
+        
+        existing_callbacks = config.get("callbacks", [])
+        config["callbacks"] = existing_callbacks + [step_counter, pruning_callback]
         return config
 
 

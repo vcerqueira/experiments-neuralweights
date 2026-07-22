@@ -14,6 +14,7 @@ from src.config_callbacks import (
     CONFIG_SAMPLERS,
     AutoConfigWithCallback,
     ConfigWithStepCounter,
+    ConfigWithPruningCallback,
     StepAccumulator,
 )
 from src.utils import read_all_metadata, load_dataset_splits
@@ -24,9 +25,9 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
 STOPPING_THRESHOLD = 0.9  # here
-N_TRIALS = 30
+N_TRIALS = 50
 CB_N_STEPS = 100
-MIN_CB_N_STEPS = 999  # here
+MIN_CB_N_STEPS = 600  # here
 MODEL_NAME = 'MLP'
 OUTPUT_DIR = Path('./assets/results_search')
 PARTIAL_OUTPUT_DIR = Path('./assets/results_search_partial')
@@ -45,6 +46,7 @@ metadata, category_mappings = read_all_metadata(
 
 all_datasets = sorted(metadata['dataset'].unique().tolist())
 # all_datasets = [all_datasets[2]]
+# all_datasets = all_datasets[2:]
 
 all_test_results = []
 for i, target_dataset in enumerate(all_datasets):
@@ -79,12 +81,21 @@ for i, target_dataset in enumerate(all_datasets):
         'TPE+Med+WASP': StepAccumulator(),
     }
 
-    config_with_counter = {
-        alias: ConfigWithStepCounter(config_sampler, acc)
-        for alias, acc in step_accumulators.items()
-        if alias not in ['RS+WASP', 'TPE+WASP']
+    # Variants without pruner: only step counter
+    no_pruner_aliases = ['RS', 'TPE']
+    config_no_pruner = {
+        alias: ConfigWithStepCounter(config_sampler, step_accumulators[alias])
+        for alias in no_pruner_aliases
     }
 
+    # Variants with Optuna pruner: need PyTorchLightningPruningCallback for pruner to work
+    pruner_aliases = ['RS+Med', 'RS+SH', 'RS+HB', 'TPE+Med', 'TPE+SH', 'TPE+HB']
+    config_with_pruner = {
+        alias: ConfigWithPruningCallback(config_sampler, step_accumulators[alias], monitor='valid_loss')
+        for alias in pruner_aliases
+    }
+
+    # Variants with WASP callback
     config_wasp = {
         alias: AutoConfigWithCallback(
             config_sampler=config_sampler,
@@ -112,7 +123,7 @@ for i, target_dataset in enumerate(all_datasets):
 
     # random search
     randoms = AutoModelClass(
-        config=config_with_counter['RS'],
+        config=config_no_pruner['RS'],
         search_alg=optuna.samplers.RandomSampler(seed=42),
         **auto_base_args,
         alias='RS'
@@ -126,9 +137,9 @@ for i, target_dataset in enumerate(all_datasets):
         alias='RS+WASP'
     )
 
-    # rs+median
+    # rs+median (with PyTorchLightningPruningCallback for pruner to work)
     randoms_med = AutoModelClass(
-        config=config_with_counter['RS+Med'],
+        config=config_with_pruner['RS+Med'],
         search_alg=optuna.samplers.RandomSampler(seed=42),
         optuna_options=OptunaOptions(
             create_study_kwargs={"pruner": optuna.pruners.MedianPruner()}
@@ -139,7 +150,7 @@ for i, target_dataset in enumerate(all_datasets):
 
     # rs+sh
     randoms_sh = AutoModelClass(
-        config=config_with_counter['RS+SH'],
+        config=config_with_pruner['RS+SH'],
         search_alg=optuna.samplers.RandomSampler(seed=42),
         optuna_options=OptunaOptions(
             create_study_kwargs={"pruner": optuna.pruners.SuccessiveHalvingPruner()}
@@ -150,7 +161,7 @@ for i, target_dataset in enumerate(all_datasets):
 
     # rs+hyperband
     randoms_hb = AutoModelClass(
-        config=config_with_counter['RS+HB'],
+        config=config_with_pruner['RS+HB'],
         search_alg=optuna.samplers.RandomSampler(seed=42),
         optuna_options=OptunaOptions(
             create_study_kwargs={"pruner": optuna.pruners.HyperbandPruner()}
@@ -170,15 +181,15 @@ for i, target_dataset in enumerate(all_datasets):
 
     # TPE
     tpe = AutoModelClass(
-        config=config_with_counter['TPE'],
+        config=config_no_pruner['TPE'],
         search_alg=optuna.samplers.TPESampler(seed=42),
         **auto_base_args,
         alias='TPE'
     )
 
-    # TPE+median
+    # TPE+median (with PyTorchLightningPruningCallback for pruner to work)
     tpe_med = AutoModelClass(
-        config=config_with_counter['TPE+Med'],
+        config=config_with_pruner['TPE+Med'],
         search_alg=optuna.samplers.TPESampler(seed=42),
         optuna_options=OptunaOptions(
             create_study_kwargs={"pruner": optuna.pruners.MedianPruner()}
@@ -189,7 +200,7 @@ for i, target_dataset in enumerate(all_datasets):
 
     # TPE+sh
     tpe_sh = AutoModelClass(
-        config=config_with_counter['TPE+SH'],
+        config=config_with_pruner['TPE+SH'],
         search_alg=optuna.samplers.TPESampler(seed=42),
         optuna_options=OptunaOptions(
             create_study_kwargs={"pruner": optuna.pruners.SuccessiveHalvingPruner()}
@@ -200,7 +211,7 @@ for i, target_dataset in enumerate(all_datasets):
 
     # TPE+hyperband
     tpe_hb = AutoModelClass(
-        config=config_with_counter['TPE+HB'],
+        config=config_with_pruner['TPE+HB'],
         search_alg=optuna.samplers.TPESampler(seed=42),
         optuna_options=OptunaOptions(
             create_study_kwargs={"pruner": optuna.pruners.HyperbandPruner()}

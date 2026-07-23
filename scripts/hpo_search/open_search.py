@@ -24,11 +24,11 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-STOPPING_THRESHOLD = 0.9  # here
+STOPPING_THRESHOLD = 0.7  # here
 N_TRIALS = 50
 CB_N_STEPS = 100
-MIN_CB_N_STEPS = 600  # here
-MODEL_NAME = 'MLP'
+MIN_CB_N_STEPS = 1  # here
+MODEL_NAME = 'NHITS'
 OUTPUT_DIR = Path('./assets/results_search')
 PARTIAL_OUTPUT_DIR = Path('./assets/results_search_partial')
 
@@ -226,11 +226,11 @@ for i, target_dataset in enumerate(all_datasets):
         randoms_med,
         randoms_sh,
         randoms_hb,
-        tpe,
-        tpe_wasp,
-        tpe_med,
-        tpe_sh,
-        tpe_hb,
+        # tpe,
+        # tpe_wasp,
+        # tpe_med,
+        # tpe_sh,
+        # tpe_hb,
     ]
 
     nf = NeuralForecast(models=models, freq=freq)

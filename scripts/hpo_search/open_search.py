@@ -28,7 +28,7 @@ STOPPING_THRESHOLD = 0.5  # here
 N_TRIALS = 30
 CB_N_STEPS = 100
 MIN_CB_N_STEPS = 101  # here
-MODEL_NAME = 'NHITS'
+MODEL_NAME = 'MLP'
 OUTPUT_DIR = Path('./assets/results_search')
 PARTIAL_OUTPUT_DIR = Path('./assets/results_search_partial')
 
@@ -45,7 +45,7 @@ metadata, category_mappings = read_all_metadata(
 )
 
 all_datasets = sorted(metadata['dataset'].unique().tolist())
-all_datasets = [all_datasets[6]]
+# all_datasets = [all_datasets[6]]
 # all_datasets = all_datasets[2:]
 
 all_test_results = []
@@ -61,7 +61,7 @@ for i, target_dataset in enumerate(all_datasets):
     meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True).copy()
     meta_classifier, clf_feature_columns = train_meta_classifier(meta_train,
                                                                  calibrate=False,
-                                                                 cal_size=0.4)
+                                                                 cal_size=0.2)
 
     mase_func = partial(mase, seasonality=seas_len)
 

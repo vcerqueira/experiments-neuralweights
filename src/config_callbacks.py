@@ -93,14 +93,24 @@ class StepCounterCallback(Callback):
         self.name = 'step_counter'
         self.accumulator_id = accumulator_id
         self._current_trial_steps = 0
+        self._recorded = False  # Prevent double-counting
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         self._current_trial_steps += 1
 
+    def _record_steps(self):
+        """Record steps to accumulator (called once per trial)."""
+        if not self._recorded and self._current_trial_steps > 0:
+            accumulator = StepAccumulator.get(self.accumulator_id)
+            accumulator.add_trial(self._current_trial_steps)
+            self._recorded = True
+
     def on_train_end(self, trainer, pl_module):
-        accumulator = StepAccumulator.get(self.accumulator_id)
-        accumulator.add_trial(self._current_trial_steps)
-        self._current_trial_steps = 0
+        self._record_steps()
+
+    def on_exception(self, trainer, pl_module, exception):
+        # Ensure steps are recorded even when TrialPruned or other exceptions occur
+        self._record_steps()
 
 
 class OptunaPruningCallback(Callback):

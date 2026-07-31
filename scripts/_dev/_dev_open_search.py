@@ -30,7 +30,6 @@ CB_N_STEPS = 100
 MIN_CB_N_STEPS = 101  # here
 MODEL_NAME = 'MLP'
 OUTPUT_DIR = Path('./assets/results_search_open')
-SEARCH_SEED = 42
 
 AUTO_MODEL_CLASSES = {
     'MLP': AutoMLP,
@@ -71,6 +70,11 @@ for i, target_dataset in enumerate(all_datasets):
         'RS+Med': StepAccumulator(),
         'RS+SH': StepAccumulator(),
         'RS+HB': StepAccumulator(),
+        # 'TPE': StepAccumulator(),
+        # 'TPE+WASP': StepAccumulator(),
+        # 'TPE+Med': StepAccumulator(),
+        # 'TPE+SH': StepAccumulator(),
+        # 'TPE+HB': StepAccumulator(),
     }
 
     # Variants without pruner: only step counter
@@ -80,14 +84,14 @@ for i, target_dataset in enumerate(all_datasets):
         for alias in no_pruner_aliases
     }
 
-    # variants with Optuna pruner: need PyTorchLightningPruningCallback for pruner to work
-    pruner_aliases = ['RS+Med', 'RS+SH', 'RS+HB']
+    # Variants with Optuna pruner: need PyTorchLightningPruningCallback for pruner to work
+    pruner_aliases = ['RS+Med', 'RS+SH', 'RS+HB', 'TPE+Med', 'TPE+SH', 'TPE+HB']
     config_with_pruner = {
         alias: ConfigWithPruningCallback(config_sampler, step_accumulators[alias], monitor='valid_loss')
         for alias in pruner_aliases
     }
 
-    # variants with WASP callback
+    # Variants with WASP callback
     config_wasp = {
         alias: AutoConfigWithCallback(
             config_sampler=config_sampler,
@@ -101,7 +105,7 @@ for i, target_dataset in enumerate(all_datasets):
             verbose=True,
             step_accumulator=step_accumulators[alias],
         )
-        for alias in ['RS+WASP']
+        for alias in ['RS+WASP', 'TPE+WASP']
     }
 
     auto_base_args = {
@@ -116,7 +120,7 @@ for i, target_dataset in enumerate(all_datasets):
     # random search
     randoms = AutoModelClass(
         config=config_no_pruner['RS'],
-        search_alg=optuna.samplers.RandomSampler(seed=SEARCH_SEED),
+        search_alg=optuna.samplers.RandomSampler(seed=42),
         **auto_base_args,
         alias='RS'
     )
@@ -124,7 +128,7 @@ for i, target_dataset in enumerate(all_datasets):
     # random search + wasp
     randoms_wasp = AutoModelClass(
         config=config_wasp['RS+WASP'],
-        search_alg=optuna.samplers.RandomSampler(seed=SEARCH_SEED),
+        search_alg=optuna.samplers.RandomSampler(seed=42),
         **auto_base_args,
         alias='RS+WASP'
     )
@@ -132,7 +136,7 @@ for i, target_dataset in enumerate(all_datasets):
     # rs+median (with PyTorchLightningPruningCallback for pruner to work)
     randoms_med = AutoModelClass(
         config=config_with_pruner['RS+Med'],
-        search_alg=optuna.samplers.RandomSampler(seed=SEARCH_SEED),
+        search_alg=optuna.samplers.RandomSampler(seed=42),
         optuna_options=OptunaOptions(
             create_study_kwargs={"pruner": optuna.pruners.MedianPruner()}
         ),
@@ -143,7 +147,7 @@ for i, target_dataset in enumerate(all_datasets):
     # rs+sh
     randoms_sh = AutoModelClass(
         config=config_with_pruner['RS+SH'],
-        search_alg=optuna.samplers.RandomSampler(seed=SEARCH_SEED),
+        search_alg=optuna.samplers.RandomSampler(seed=42),
         optuna_options=OptunaOptions(
             create_study_kwargs={"pruner": optuna.pruners.SuccessiveHalvingPruner()}
         ),
@@ -154,7 +158,7 @@ for i, target_dataset in enumerate(all_datasets):
     # rs+hyperband
     randoms_hb = AutoModelClass(
         config=config_with_pruner['RS+HB'],
-        search_alg=optuna.samplers.RandomSampler(seed=SEARCH_SEED),
+        search_alg=optuna.samplers.RandomSampler(seed=42),
         optuna_options=OptunaOptions(
             create_study_kwargs={"pruner": optuna.pruners.HyperbandPruner()}
         ),
@@ -162,12 +166,68 @@ for i, target_dataset in enumerate(all_datasets):
         alias='RS+HB'
     )
 
+
+    # TPE+WASP
+    tpe_wasp = AutoModelClass(
+        config=config_wasp['TPE+WASP'],
+        search_alg=optuna.samplers.TPESampler(seed=42),
+        **auto_base_args,
+        alias='TPE+WASP'
+    )
+
+    # TPE
+    tpe = AutoModelClass(
+        config=config_no_pruner['TPE'],
+        search_alg=optuna.samplers.TPESampler(seed=42),
+        **auto_base_args,
+        alias='TPE'
+    )
+
+    # TPE+median (with PyTorchLightningPruningCallback for pruner to work)
+    tpe_med = AutoModelClass(
+        config=config_with_pruner['TPE+Med'],
+        search_alg=optuna.samplers.TPESampler(seed=42),
+        optuna_options=OptunaOptions(
+            create_study_kwargs={"pruner": optuna.pruners.MedianPruner()}
+        ),
+        **auto_base_args,
+        alias='TPE+Med'
+    )
+
+    # TPE+sh
+    tpe_sh = AutoModelClass(
+        config=config_with_pruner['TPE+SH'],
+        search_alg=optuna.samplers.TPESampler(seed=42),
+        optuna_options=OptunaOptions(
+            create_study_kwargs={"pruner": optuna.pruners.SuccessiveHalvingPruner()}
+        ),
+        **auto_base_args,
+        alias='TPE+SH'
+    )
+
+    # TPE+hyperband
+    tpe_hb = AutoModelClass(
+        config=config_with_pruner['TPE+HB'],
+        search_alg=optuna.samplers.TPESampler(seed=42),
+        optuna_options=OptunaOptions(
+            create_study_kwargs={"pruner": optuna.pruners.HyperbandPruner()}
+        ),
+        **auto_base_args,
+        alias='TPE+HB'
+    )
+
+
     models = [
         randoms,
         randoms_wasp,
         randoms_med,
         randoms_sh,
         randoms_hb,
+        # tpe,
+        # tpe_wasp,
+        # tpe_med,
+        # tpe_sh,
+        # tpe_hb,
     ]
 
     nf = NeuralForecast(models=models, freq=freq)
@@ -202,3 +262,4 @@ for i, target_dataset in enumerate(all_datasets):
     pd.DataFrame([test_results]).to_csv(partial_path, index=False)
 
 all_test_df = pd.DataFrame(all_test_results)
+

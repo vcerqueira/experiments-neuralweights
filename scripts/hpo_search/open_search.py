@@ -27,10 +27,10 @@ pd.set_option('display.max_rows', None)
 STOPPING_THRESHOLD = 0.5  # here
 N_TRIALS = 30
 CB_N_STEPS = 100
-MIN_CB_N_STEPS = 101  # here
-MODEL_NAME = 'MLP'
+MIN_CB_N_STEPS = 400  # here
+MODEL_NAME = 'PatchTST'
 OUTPUT_DIR = Path('./assets/results_search_open')
-SEARCH_SEED = 42
+SEARCH_SEED = 123
 
 AUTO_MODEL_CLASSES = {
     'MLP': AutoMLP,
@@ -74,7 +74,7 @@ for i, target_dataset in enumerate(all_datasets):
     }
 
     # Variants without pruner: only step counter
-    no_pruner_aliases = ['RS', 'TPE']
+    no_pruner_aliases = ['RS']
     config_no_pruner = {
         alias: ConfigWithStepCounter(config_sampler, step_accumulators[alias])
         for alias in no_pruner_aliases
@@ -166,7 +166,7 @@ for i, target_dataset in enumerate(all_datasets):
         randoms,
         randoms_wasp,
         randoms_med,
-        randoms_sh,
+        # randoms_sh,
         randoms_hb,
     ]
 

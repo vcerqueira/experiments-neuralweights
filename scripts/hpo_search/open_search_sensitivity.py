@@ -1,8 +1,9 @@
 """Sensitivity analysis for WASP early stopping hyperparameters.
 
 Varies:
-- STOPPING_THRESHOLD: 0.70 to 0.95 (step 0.05)
-- MIN_CB_N_STEPS: 1 to 1001 (step 200)
+- STOPPING_THRESHOLD
+- MIN_CB_N_STEPS
+- N_TRIALS: number of Optuna search trials
 
 Only uses TPE+WASP to isolate the effect of these parameters.
 """
@@ -32,10 +33,10 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
 # Sensitivity grid
-STOPPING_THRESHOLDS = np.arange(0.70, 0.96, 0.05).round(2).tolist()
-MIN_CB_N_STEPS_LIST = list(range(1, 1002, 200))
+STOPPING_THRESHOLDS = [0.5, 0.75]
+MIN_CB_N_STEPS_LIST = [100, 500]
+N_TRIALS_LIST = [20, 50]
 
-N_TRIALS = 50
 CB_N_STEPS = 100
 MODEL_NAME = 'MLP'
 OUTPUT_DIR = Path('./assets/results_sens')
@@ -50,7 +51,11 @@ AUTO_MODEL_CLASSES = {
 print(f"Sensitivity Analysis Grid:")
 print(f"  STOPPING_THRESHOLDS: {STOPPING_THRESHOLDS}")
 print(f"  MIN_CB_N_STEPS_LIST: {MIN_CB_N_STEPS_LIST}")
-print(f"  Total combinations per dataset: {len(STOPPING_THRESHOLDS) * len(MIN_CB_N_STEPS_LIST)}")
+print(f"  N_TRIALS_LIST: {N_TRIALS_LIST}")
+print(
+    f"  Total combinations per dataset: "
+    f"{len(STOPPING_THRESHOLDS) * len(MIN_CB_N_STEPS_LIST) * len(N_TRIALS_LIST)}"
+)
 
 metadata, category_mappings = read_all_metadata(
     './assets',
@@ -79,8 +84,14 @@ for i, target_dataset in enumerate(all_datasets):
 
     dataset_results = []
 
-    for stopping_threshold, min_cb_n_steps in product(STOPPING_THRESHOLDS, MIN_CB_N_STEPS_LIST):
-        print(f"\n  [threshold={stopping_threshold}, min_steps={min_cb_n_steps}]", end=" ")
+    for stopping_threshold, min_cb_n_steps, n_trials in product(
+        STOPPING_THRESHOLDS, MIN_CB_N_STEPS_LIST, N_TRIALS_LIST
+    ):
+        print(
+            f"\n  [threshold={stopping_threshold}, min_steps={min_cb_n_steps}, "
+            f"n_trials={n_trials}]",
+            end=" ",
+        )
 
         step_accumulator = StepAccumulator()
 
@@ -100,13 +111,13 @@ for i, target_dataset in enumerate(all_datasets):
         auto_base_args = {
             'h': horizon,
             'backend': "optuna",
-            'num_samples': N_TRIALS,
+            'num_samples': n_trials,
             'refit_with_val': True,
         }
 
         tpe_wasp = AutoModelClass(
             config=config_fn,
-            search_alg=optuna.samplers.TPESampler(seed=42),
+            search_alg=optuna.samplers.RandomSampler(seed=42),
             **auto_base_args,
             alias='TPE+WASP'
         )
@@ -124,9 +135,10 @@ for i, target_dataset in enumerate(all_datasets):
             'dataset': target_dataset,
             'stopping_threshold': stopping_threshold,
             'min_cb_n_steps': min_cb_n_steps,
+            'n_trials': n_trials,
             'test_mase': test_mase_value,
             'total_steps': step_accumulator.total_steps,
-            'n_trials': len(step_accumulator.trial_steps),
+            'n_trials_completed': len(step_accumulator.trial_steps),
         }
 
         dataset_results.append(result)

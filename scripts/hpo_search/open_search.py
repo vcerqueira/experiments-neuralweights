@@ -58,8 +58,11 @@ for i, target_dataset in enumerate(all_datasets):
         target_dataset, get_valid=True
     )
 
+
     meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True).copy()
+
     meta_classifier, clf_feature_columns = train_meta_classifier(meta_train, calibrate=False)
+
 
     mase_func = partial(mase, seasonality=seas_len)
 

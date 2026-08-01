@@ -4,7 +4,7 @@ from typing import Callable, Optional
 import optuna
 from pytorch_lightning.callbacks import Callback
 
-from src.early_stopping import ClassifierEarlyStopCallback
+from src.early_stopping import ClassifierEarlyStopCallback, MetaModelEarlyStopCallback
 
 warnings.filterwarnings('ignore')
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -165,9 +165,13 @@ class OptunaPruningCallback(Callback):
             pass
     
     def on_fit_end(self, trainer, pl_module):
-        # Raise TrialPruned after training ends gracefully
         if self._pruned:
-            raise optuna.TrialPruned(f"Trial was pruned at epoch {self._pruned_epoch}.")
+            try:
+                trial = TrialRegistry.get(self.trial_id)
+                if trial.state == optuna.trial.TrialState.RUNNING:
+                    raise optuna.TrialPruned(f"Trial was pruned at epoch {self._pruned_epoch}.")
+            except (KeyError, AttributeError):
+                pass
 
 
 class ConfigWithStepCounter:
@@ -316,6 +320,103 @@ class AutoConfigWithCallback:
             config_data=self._prepare_config_data(config),
             category_mappings=self.category_mappings,
             stopping_threshold=self.stopping_threshold,
+            every_n_steps=self.cb_n_steps,
+            min_steps=self.min_steps,
+            verbose=self.verbose,
+        )
+
+        callbacks = [callback]
+        if self.accumulator_id is not None:
+            step_counter = StepCounterCallback(self.accumulator_id)
+            callbacks.append(step_counter)
+
+        config["callbacks"] = callbacks
+        return config
+
+    def _prepare_config_data(self, config: dict) -> dict:
+        """Prepare config_data dict for the callback with expected field names."""
+        config_data = config.copy()
+        config_data.pop('callbacks', None)
+
+        input_size = config_data.pop('input_size', None)
+        if input_size is not None:
+            config_data['input_size_multiplier'] = 1
+
+        config_data['model'] = self.model_name
+
+        return config_data
+
+
+class AutoConfigWithRegressorCallback:
+    """Callable config factory for AutoModels with regressor-based early stopping.
+
+    Uses a conformal regression model to predict P(MASE > threshold) and stops
+    training early if the probability exceeds a stopping threshold.
+
+    Args:
+        config_sampler: Callable that takes an Optuna trial and returns a config dict.
+        model_name: Name of the model (used for preparing config_data).
+        meta_regressor: Trained meta-regressor with conformal prediction.
+        feature_columns: Feature columns expected by the meta-regressor.
+        category_mappings: Category mappings for encoding.
+        stopping_threshold: Probability threshold for early stopping decision.
+        exceedance_threshold: Value threshold for P(Y > exceedance_threshold).
+        cb_n_steps: Check callback every N steps.
+        min_steps: Minimum steps before callback activates.
+        verbose: Whether to print callback predictions.
+        step_accumulator: Optional StepAccumulator to track steps across trials.
+
+    Example:
+        >>> accumulator = StepAccumulator()
+        >>> sampler = mlp_config_sampler(input_size=24)
+        >>> config_fn = AutoConfigWithRegressorCallback(
+        ...     config_sampler=sampler,
+        ...     model_name='MLP',
+        ...     meta_regressor=reg,
+        ...     feature_columns=features,
+        ...     category_mappings=mappings,
+        ...     step_accumulator=accumulator,
+        ... )
+        >>> auto_model = AutoMLP(h=12, config=config_fn, ...)
+    """
+
+    def __init__(
+            self,
+            config_sampler: Callable[[optuna.Trial], dict],
+            model_name: str,
+            meta_regressor,
+            feature_columns: list[str],
+            category_mappings: dict,
+            stopping_threshold: float = 0.70,
+            exceedance_threshold: float = 0.0,
+            cb_n_steps: int = 100,
+            min_steps: int = 50,
+            verbose: bool = True,
+            step_accumulator: Optional[StepAccumulator] = None,
+    ):
+        self.config_sampler = config_sampler
+        self.model_name = model_name
+        self.meta_regressor = meta_regressor
+        self.feature_columns = feature_columns
+        self.category_mappings = category_mappings
+        self.stopping_threshold = stopping_threshold
+        self.exceedance_threshold = exceedance_threshold
+        self.cb_n_steps = cb_n_steps
+        self.min_steps = min_steps
+        self.verbose = verbose
+        self.accumulator_id = step_accumulator.id if step_accumulator is not None else None
+
+    def __call__(self, trial: optuna.Trial) -> dict:
+        """Sample config and inject early stopping callback."""
+        config = self.config_sampler(trial)
+
+        callback = MetaModelEarlyStopCallback(
+            meta_model=self.meta_regressor,
+            feature_columns=self.feature_columns,
+            config_data=self._prepare_config_data(config),
+            category_mappings=self.category_mappings,
+            stopping_threshold=self.stopping_threshold,
+            exceedance_threshold=self.exceedance_threshold,
             every_n_steps=self.cb_n_steps,
             min_steps=self.min_steps,
             verbose=self.verbose,

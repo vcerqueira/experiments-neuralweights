@@ -11,7 +11,7 @@ from statsforecast import StatsForecast
 from statsforecast.models import SeasonalNaive
 from utilsforecast.losses import mase
 
-from src.algorithms import CatBoostAUCClassifier, CatBoostRegressionModel
+from src.algorithms import CatBoostAUCClassifier, CatBoostRegressionModel, RFAUCClassifier
 from src.config import TRY_MPS
 from src.early_stopping import ClassifierEarlyStopCallback, MetaModelEarlyStopCallback
 from src.neural.nf_arch import ModelsConfig
@@ -41,7 +41,9 @@ def train_meta_classifier(
         calibration_method="platt",
         cal_size=cal_size,
     )
+
     clf.fit(data.X, data.y)
+
 
     return clf, data.feature_columns
 

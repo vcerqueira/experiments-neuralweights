@@ -37,7 +37,7 @@ config_list_master = ConfigSampler.generate_samples(
     random_state=SEED,
 )
 
-# drop the first 1000 configs, which the model has never seen
+# drop the first 1000 configs, which the model has seen
 config_list_master = config_list_master[1000:]
 
 # LOO

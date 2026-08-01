@@ -119,6 +119,9 @@ class OptunaPruningCallback(Callback):
     Reports intermediate validation metrics to Optuna and handles pruning decisions.
     Uses TrialRegistry to look up the trial at runtime, surviving deep-copy.
     
+    The callback stops training gracefully via trainer.should_stop and raises
+    TrialPruned in on_fit_end, ensuring proper cleanup before the exception.
+    
     Args:
         trial_id: ID of the trial in TrialRegistry.
         monitor: Metric name to monitor for pruning (e.g., 'valid_loss').
@@ -134,6 +137,8 @@ class OptunaPruningCallback(Callback):
         self.trial_id = trial_id
         self.monitor = monitor
         self._epoch = 0
+        self._pruned = False
+        self._pruned_epoch = 0
     
     def on_validation_end(self, trainer, pl_module):
         # Skip sanity check validation
@@ -152,11 +157,17 @@ class OptunaPruningCallback(Callback):
             
             # Check if trial should be pruned
             if trial.should_prune():
-                message = f"Trial was pruned at epoch {self._epoch}."
-                raise optuna.TrialPruned(message)
+                self._pruned = True
+                self._pruned_epoch = self._epoch
+                trainer.should_stop = True  # Stop training gracefully
         except (KeyError, RuntimeError, optuna.exceptions.UpdateFinishedTrialError):
             # Trial not found, finished, or otherwise unavailable - skip silently
             pass
+    
+    def on_fit_end(self, trainer, pl_module):
+        # Raise TrialPruned after training ends gracefully
+        if self._pruned:
+            raise optuna.TrialPruned(f"Trial was pruned at epoch {self._pruned_epoch}.")
 
 
 class ConfigWithStepCounter:

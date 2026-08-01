@@ -27,8 +27,8 @@ pd.set_option('display.max_rows', None)
 STOPPING_THRESHOLD = 0.5  # here
 N_TRIALS = 30
 CB_N_STEPS = 100
-MIN_CB_N_STEPS = 400  # here
-MODEL_NAME = 'PatchTST'
+MIN_CB_N_STEPS = 1  # here
+MODEL_NAME = 'MLP'
 OUTPUT_DIR = Path('./assets/results_search_open')
 SEARCH_SEED = 123
 
@@ -45,8 +45,8 @@ metadata, category_mappings = read_all_metadata(
 )
 
 all_datasets = sorted(metadata['dataset'].unique().tolist())
-# all_datasets = [all_datasets[6]]
-# all_datasets = all_datasets[2:]
+all_datasets = [all_datasets[2]]
+# all_datasets = all_datasets[3:]
 
 all_test_results = []
 for i, target_dataset in enumerate(all_datasets):
@@ -198,7 +198,7 @@ for i, target_dataset in enumerate(all_datasets):
         print(f"  {alias}: {acc.total_steps:,} steps ({len(acc.trial_steps)} trials)")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    partial_path = OUTPUT_DIR / f"open_test_{MODEL_NAME}_{target_dataset}.csv"
+    partial_path = OUTPUT_DIR / f"open_test_{MODEL_NAME}_{N_TRIALS}_{target_dataset}.csv"
     pd.DataFrame([test_results]).to_csv(partial_path, index=False)
 
 all_test_df = pd.DataFrame(all_test_results)

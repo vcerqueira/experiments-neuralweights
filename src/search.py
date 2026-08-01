@@ -308,6 +308,7 @@ def evaluate_best_configs(
         final_model_names.append(f'{model_name}-BestCLF')
     else:
         best_configs['clf'] = None
+
         if verbose:
             print("\nNo completed runs with classifier callback (all stopped early)")
 

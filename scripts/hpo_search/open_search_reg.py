@@ -31,10 +31,10 @@ pd.set_option('display.max_rows', None)
 
 STOPPING_THRESHOLD = 0.5  # P(exceed) threshold for early stopping
 EXCEEDANCE_THRESHOLD = 0.0  # Value threshold: P(MASE_diff > this)
-N_TRIALS = 30
+N_TRIALS = 10
 CB_N_STEPS = 100
 MIN_CB_N_STEPS = 1
-MODEL_NAME = 'MLP'
+MODEL_NAME = 'NHITS'
 OUTPUT_DIR = Path('./assets/results_search_open_reg')
 SEARCH_SEED = 123
 
@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
     all_datasets = sorted(metadata['dataset'].unique().tolist())
     # all_datasets = [all_datasets[2]]
-    # all_datasets = all_datasets[3:]
+    # all_datasets = all_datasets[5:]
 
     all_test_results = []
     for i, target_dataset in enumerate(all_datasets):

@@ -7,10 +7,21 @@ import plotnine as p9
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-MODELS = ['MLP', 'NHITS']
-# MODELS = ['MLP', 'NHITS', 'PatchTST']
+# MODELS = ['MLP', 'NHITS']
+MODELS = ['MLP', 'NHITS', 'PatchTST']
 RESULTS_DIR = Path('./assets/results_search')
 OUTPUT_DIR = Path('./assets/outputs')
+
+DATASET_MAPPING = {
+    'monash_hospital': 'Hospital',
+    'monash_m1_monthly': 'M1-M',
+    'monash_m1_quarterly': 'M1-Q',
+    'monash_m3_monthly': 'M3-M',
+    'monash_m3_quarterly': 'M3-Q',
+    'monash_tourism_monthly': 'T-M',
+    'monash_tourism_quarterly': 'T-Q',
+    'average': 'Average',
+}
 
 # =============================================================================
 # 1. Load all data
@@ -45,6 +56,44 @@ def build_performance_table(test_dfs: dict[str, pd.DataFrame], models: list[str]
 
 perf_ind = build_performance_table(test_ind, MODELS)
 perf_transfer = build_performance_table(test_transfer, MODELS)
+
+perf_ind.rename(index=DATASET_MAPPING, inplace=True)
+perf_transfer.rename(index=DATASET_MAPPING, inplace=True)
+
+
+def build_model_comparison_table(model: str, perf_ind: pd.DataFrame, perf_transfer: pd.DataFrame) -> pd.DataFrame:
+    """Build a table for a single model combining in-domain and transfer performance."""
+    clf_col = f'{model}_CLF'
+    nocb_col = f'{model}_NoCB'
+
+    df = pd.DataFrame({
+        ('In-Domain', 'WASP'): perf_ind[clf_col],
+        ('In-Domain', 'No CB'): perf_ind[nocb_col],
+        ('Transfer', 'WASP'): perf_transfer[clf_col],
+        ('Transfer', 'No CB'): perf_transfer[nocb_col],
+        ('Baseline', 'S. Naive'): perf_ind['SeasonalNaive'],
+    })
+    df.columns = pd.MultiIndex.from_tuples(df.columns)
+    return df
+
+
+def to_latex_multicolumn(df: pd.DataFrame, model: str, float_format: str = "%.3f") -> str:
+    """Convert DataFrame with MultiIndex columns to LaTeX with proper formatting."""
+    latex = df.to_latex(
+        float_format=float_format,
+        multicolumn=True,
+        multicolumn_format='c',
+        na_rep='--',
+        caption=f'MASE performance for {model}: In-Domain vs Transfer configuration search.',
+        label=f'tab:{model.lower()}_performance',
+    )
+    return latex
+
+
+for model in MODELS:
+    table = build_model_comparison_table(model, perf_ind, perf_transfer)
+    latex_str = to_latex_multicolumn(table, model)
+    print(latex_str)
 
 
 def add_mode_column(dfs: dict[str, pd.DataFrame], mode: str) -> pd.DataFrame:

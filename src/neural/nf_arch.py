@@ -18,7 +18,7 @@ class ModelsConfig:
                               model_config: Dict,
                               horizon: int,
                               input_size: int,
-                              engine: bool = 'cpu',
+                              engine: str = 'cpu',
                               limit_epochs: bool = False,
                               limit_val_batches: Optional[int] = None,
                               callbacks: Optional[List] = None,

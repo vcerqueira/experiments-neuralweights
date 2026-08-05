@@ -5,12 +5,12 @@ import pandas as pd
 from sklearn.metrics import (mean_absolute_error as mae,
                              roc_auc_score,
                              log_loss,
-                             brier_score_loss)
+                             brier_score_loss,
+                             r2_score)
 from sklearn.model_selection import LeaveOneGroupOut
 
-from src.utils import read_all_metadata, corr_coef, build_meta_xy
-from src.algorithms import CatBoostRegressionModel
-from src.plots import plot_calibration_curve
+from src.workflows.metadata_utils import read_all_metadata, corr_coef, build_meta_xy
+from src.weightcast.learner_regressor import CatBoostRegressionModel
 
 model = 'NHITS'
 results_dir = Path('./assets/results_cv')
@@ -57,6 +57,7 @@ for train_idx, test_idx in logo.split(X, y, groups):
     nmae_fold = mae(y_ts, preds) / mae(y_ts, y_baseline)
     cc_k = corr_coef(y_ts, preds, 'kendall')
     cc_s = corr_coef(y_ts, preds, 'spearman')
+    r2_s = r2_score(y_ts, preds)
 
     thr = 0 if PERFORMANCE_DIFF else mase_sn_by_dataset[held_out]
     y_exc_bin = (y_ts > thr).astype(int)
@@ -83,6 +84,7 @@ for train_idx, test_idx in logo.split(X, y, groups):
         'nmae': nmae_fold,
         'kendall': cc_k,
         'spearman': cc_s,
+        'r2': r2_s,
         'auc_exc': auc_exc,
         'll_raw': ll_raw,
         'll_iso': ll_iso,
@@ -96,22 +98,10 @@ for train_idx, test_idx in logo.split(X, y, groups):
 
 metrics_df = pd.DataFrame(fold_metrics)
 print("\n--- Metrics Summary (mean ± std) ---")
-summary_cols = ['nmae', 'auc_exc', 'kendall', 'spearman', 'll_raw', 'll_iso',
+summary_cols = ['nmae', 'auc_exc', 'kendall', 'spearman', 'r2', 'll_raw', 'll_iso',
                 'll_platt', 'brier_raw', 'brier_iso',
                 'brier_platt']
 print(metrics_df[summary_cols].agg(['mean', 'std']).T)
-
-calib_plot_path = Path("./assets/outputs") / f"metal_reg_calibration_{model}_logo.pdf"
-plot_calibration_curve(
-    exc_true_folds[2],
-    exc_raw_folds[2],
-    y_prob_calibrated={"isotonic": exc_isotonic_folds[2], "platt": exc_platt_folds[2]},
-    n_bins=10,
-    title=f"",
-    save_path=calib_plot_path,
-    raw_label="Raw (conformal)",
-)
-
 
 metrics_df.set_index(['dataset'], inplace=True)
 

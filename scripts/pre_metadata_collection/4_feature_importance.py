@@ -3,8 +3,9 @@ from pathlib import Path
 import pandas as pd
 import plotnine as p9
 
-from src.utils import read_all_metadata, build_meta_xy
-from src.algorithms import CatBoostRegressionModel, CatBoostAUCClassifier
+from src.workflows.metadata_utils import read_all_metadata, build_meta_xy
+from src.weightcast.learner_classifier import CatBoostAUCClassifier
+from src.weightcast.learner_regressor import CatBoostRegressionModel
 
 MODEL = 'PatchTST'
 OUTPUT_DIR = Path('./assets/outputs')

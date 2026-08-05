@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import plotnine as p9
 
-from src.utils import read_all_metadata
+from src.workflows.metadata_utils import read_all_metadata
 
 MODEL_NAME = 'PatchTST'
 OUTPUT_DIR = Path('./assets/outputs')

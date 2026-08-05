@@ -6,14 +6,11 @@ import plotnine as p9
 from sklearn.metrics import roc_auc_score, log_loss, brier_score_loss, roc_curve
 from sklearn.model_selection import LeaveOneGroupOut
 
-from src.utils import read_all_metadata, build_meta_xy
-from src.algorithms.binary import CatBoostAUCClassifier
-from src.plots import plot_calibration_curve
+from src.workflows.metadata_utils import read_all_metadata, build_meta_xy
+from src.weightcast.learner_classifier import CatBoostAUCClassifier
 
 model = 'PatchTST'
 results_dir = Path('./assets/results_cv')
-plot_path_m3 = Path("./assets/outputs") / f"metal_clf_roc_{model}_monash_m3_monthly_logo.pdf"
-calib_plot_path_m3 = Path("./assets/outputs") / f"metal_clf_calibration_{model}_monash_m3_monthly_logo.pdf"
 
 metadata, category_mappings = read_all_metadata(
     './assets', model,
@@ -38,9 +35,7 @@ for train_idx, test_idx in logo.split(X, y, groups):
     held_out = groups.iloc[test_idx[0]]
     print(held_out)
 
-    clf = CatBoostAUCClassifier(calibrate=True,
-                                calibration_method='platt',
-                                cal_size=0.15)
+    clf = CatBoostAUCClassifier(calibrate=True, calibration_method='platt', cal_size=0.15)
 
     clf.fit(X.iloc[train_idx], y.iloc[train_idx])
 
@@ -102,6 +97,7 @@ p = (
 )
 )
 
+plot_path_m3 = Path("./assets/outputs") / f"metal_clf_roc_{model}_monash_m3_monthly_logo.pdf"
 p.save(plot_path_m3, width=5, height=5, verbose=False)
 
 auc_df = pd.DataFrame(fold_scores, columns=['dataset', 'auc', 'll', 'brier'])
@@ -115,12 +111,3 @@ auc_df.loc['average'] = auc_df.mean(numeric_only=True)
 auc_df.loc['std'] = auc_df.std(numeric_only=True)
 
 auc_df.to_csv(results_dir / f'cv_clf_scores_{model}.csv')
-
-plot_calibration_curve(
-    y_m3,
-    preds_raw_m3,
-    y_prob_calibrated={"platt": preds_m3},
-    n_bins=10,
-    title="",
-    save_path=calib_plot_path_m3,
-)

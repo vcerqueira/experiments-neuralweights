@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from src.utils import read_all_metadata
-from src.weights.weight_summarizer import NeuralWeightsFeatureEng
+from src.workflows.metadata_utils import read_all_metadata
+from src.weightcast.watcher_summarizer import NeuralWeightsFeatureEng
 
 model_name = 'PatchTST'
 data_dir = Path('../neuralweights-files/results')

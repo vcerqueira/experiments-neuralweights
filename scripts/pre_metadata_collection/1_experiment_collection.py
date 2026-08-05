@@ -11,11 +11,11 @@ from utilsforecast.losses import mase
 from functools import partial
 
 from src.neural.nf_arch import ModelsConfig
-from src.config import N_SAMPLES, SEED, TRY_MPS, MAX_SAMPLES, CB_N_STEPS
+from src.config import N_SAMPLES, SEED, ENGINE, MAX_SAMPLES, CB_N_STEPS
 from src.neural.config_pool import NEURAL_CONFIG_POOL
 from src.neural.param_samples import ConfigSampler
-from src.weights.watcher_callback import WeightWatcherCallback
-from src.utils import load_dataset_splits
+from src.weightcast.watcher_callback import WeightWatcherCallback
+from src.workflows.metadata_utils import load_dataset_splits
 
 warnings.filterwarnings('ignore')
 
@@ -70,7 +70,7 @@ if __name__ == '__main__':
                                                        model_config=config_sample,
                                                        horizon=horizon,
                                                        input_size=n_lags,
-                                                       try_mps=TRY_MPS,
+                                                       engine=ENGINE,
                                                        callbacks=[ww_callback])
 
             sf = StatsForecast(models=[SeasonalNaive(season_length=seas_len)], freq=freq, )
@@ -116,5 +116,4 @@ if __name__ == '__main__':
             cbd_df['mase_sn'] = err['SeasonalNaive']
 
             ##----- serialization
-            # cbs_df.to_csv(cbs_fp, index=False)
             cbd_df.to_csv(cbd_fp, index=False)

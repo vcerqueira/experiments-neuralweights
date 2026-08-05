@@ -1,8 +1,4 @@
-"""HPO search utilities with Weightcast meta-model based early stopping."""
-from __future__ import annotations
-
 from functools import partial
-from pathlib import Path
 from typing import Union
 
 import numpy as np
@@ -12,9 +8,9 @@ from statsforecast import StatsForecast
 from statsforecast.models import SeasonalNaive
 from utilsforecast.losses import mase
 
-from src.config import TRY_MPS
+from src.config import ENGINE
 from src.neural.nf_arch import ModelsConfig
-from src.utils import build_meta_xy
+from src.workflows.metadata_utils import build_meta_xy
 from src.weightcast.callbacks import WeightcastClassifier, WeightcastRegressor
 from src.weightcast.learner_classifier import CatBoostAUCClassifier
 from src.weightcast.learner_regressor import CatBoostRegressionModel
@@ -191,7 +187,7 @@ def run_hpo_search(
             model_config=config_sample.copy(),
             horizon=horizon,
             input_size=n_lags,
-            try_mps=TRY_MPS,
+            engine=ENGINE,
             callbacks=[weightcast_cb],
             alias=f'{model_name}-WC',
         )
@@ -202,7 +198,7 @@ def run_hpo_search(
             model_config=config_sample.copy(),
             horizon=horizon,
             input_size=n_lags,
-            try_mps=TRY_MPS,
+            engine=ENGINE,
             callbacks=[],
             alias=f'{model_name}-NoCB',
         )
@@ -300,7 +296,7 @@ def evaluate_best_configs(
             model_config=best_wc_config.copy(),
             horizon=horizon,
             input_size=n_lags,
-            try_mps=TRY_MPS,
+            engine=ENGINE,
             callbacks=[],
             alias=f'{model_name}-BestWC',
         )
@@ -326,7 +322,7 @@ def evaluate_best_configs(
         model_config=best_nocb_config.copy(),
         horizon=horizon,
         input_size=n_lags,
-        try_mps=TRY_MPS,
+        engine=ENGINE,
         callbacks=[],
         alias=f'{model_name}-BestNoCB',
     )
@@ -363,34 +359,3 @@ def evaluate_best_configs(
     test_results['best_nocb_config_id'] = best_configs.get('nocb')
 
     return test_results
-
-#
-# def save_search_results(
-#         results_df: pd.DataFrame,
-#         test_results: dict,
-#         target_dataset: str,
-#         output_dir: Path,
-# ) -> tuple[Path, Path]:
-#     """Save search results and test evaluation to CSV files.
-#
-#     Args:
-#         results_df: Search results DataFrame.
-#         test_results: Test evaluation results dict.
-#         target_dataset: Name of target dataset.
-#         output_dir: Output directory.
-#
-#     Returns:
-#         Tuple of (search_results_path, test_results_path).
-#     """
-#     output_dir = Path(output_dir)
-#     output_dir.mkdir(parents=True, exist_ok=True)
-#
-#     search_path = output_dir / f"search_{target_dataset}.csv"
-#     results_df.to_csv(search_path, index=False)
-#
-#     test_path = output_dir / f"test_{target_dataset}.csv"
-#     test_df = pd.DataFrame([test_results])
-#     test_df['dataset'] = target_dataset
-#     test_df.to_csv(test_path, index=False)
-#
-#     return search_path, test_path

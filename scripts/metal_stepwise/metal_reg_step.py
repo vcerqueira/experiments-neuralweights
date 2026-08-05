@@ -5,11 +5,15 @@ import pandas as pd
 from sklearn.metrics import (mean_absolute_error as mae,
                              roc_auc_score,
                              log_loss,
+                             r2_score,
                              brier_score_loss)
 from sklearn.model_selection import LeaveOneGroupOut
 
-from src.utils import read_all_metadata, build_meta_xy, corr_coef
-from src.algorithms import CatBoostRegressionModel
+from src.workflows.metadata_utils import read_all_metadata, build_meta_xy, corr_coef
+from src.weightcast.learner_regressor import CatBoostRegressionModel
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
 
 model_name = 'MLP'
 results_dir = Path('./assets/results_cv')
@@ -65,6 +69,7 @@ def run_logo_cv_for_step(
     fold_briers: list[float] = []
     fold_spearmans: list[float] = []
     fold_kendalls: list[float] = []
+    fold_r2: list[float] = []
     fold_nmaes: list[float] = []
 
     for train_idx, test_idx in logo.split(X, y, groups):
@@ -90,6 +95,7 @@ def run_logo_cv_for_step(
 
         fold_spearmans.append(corr_coef(y_ts, preds, 'spearman'))
         fold_kendalls.append(corr_coef(y_ts, preds, 'kendall'))
+        fold_r2.append(r2_score(y_ts, preds))
         fold_aucs.append(roc_auc_score(y_exc_bin, pred_exc))
         fold_lls.append(log_loss(y_exc_bin, pred_exc))
         fold_briers.append(brier_score_loss(y_exc_bin, pred_exc))
@@ -99,6 +105,7 @@ def run_logo_cv_for_step(
         'step': step,
         'nmae': np.mean(fold_nmaes),
         'spearman': np.mean(fold_spearmans),
+        'r2': np.mean(fold_r2),
         'kendall': np.mean(fold_kendalls),
         'auc_exc': np.mean(fold_aucs),
         'auc_exc_std': np.std(fold_aucs),
@@ -121,9 +128,6 @@ for step in steps:
           f"Spearman = {metrics['spearman']:.3f}")
 
 results_df = pd.DataFrame(results)
-
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
 
 print(results_df)
 

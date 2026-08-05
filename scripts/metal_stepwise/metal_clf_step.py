@@ -5,8 +5,8 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score, log_loss, brier_score_loss
 from sklearn.model_selection import LeaveOneGroupOut
 
-from src.utils import read_all_metadata, build_meta_xy
-from src.algorithms import CatBoostAUCClassifier
+from src.workflows.metadata_utils import read_all_metadata, build_meta_xy
+from src.weightcast.learner_classifier import CatBoostAUCClassifier
 
 model_name = 'PatchTST'
 results_dir = Path('./assets/results_cv')

@@ -8,7 +8,7 @@ RESULTS_DIR = Path().resolve() / 'results'
 
 SEED = 1108
 CB_N_STEPS = 10
-TRY_MPS = True
+ENGINE = 'mps'
 if DRY_RUN:
     LIMIT_EPOCHS = True
     N_SAMPLES = 100

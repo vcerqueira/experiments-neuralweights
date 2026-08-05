@@ -63,7 +63,7 @@ class WeightWatcherCallback(Callback):
 
     @staticmethod
     def get_cb(nf):
-        # todo getting from the first model only
+        # todo this is getting the cb from the first model only
         all_cbs = nf.models[0].trainer_kwargs['callbacks']
         ww_cb = next(cb for cb in all_cbs if cb.name == "weightwatcher")
 

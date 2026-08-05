@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -227,11 +225,15 @@ class CatBoostRegressionModel:
     ) -> pd.Series:
         """Return CatBoost feature importances indexed by input variable name."""
         self._check_fitted()
+
         scores = self.model_.get_feature_importance(type=importance_type)
         names = self.feature_names_ or self.model_.feature_names_
         if names is None:
             names = [f"f{i}" for i in range(len(scores))]
-        return pd.Series(scores, index=names, name=importance_type).sort_values(ascending=False)
+
+        importance_scr = pd.Series(scores, index=names, name=importance_type).sort_values(ascending=False)
+
+        return importance_scr
 
     def _fit_conformal(
             self,

@@ -1,4 +1,7 @@
+from typing import Callable
+
 from ray import tune
+import optuna
 
 NEURAL_CONFIG_POOL = {
     'NHITS': {
@@ -168,4 +171,92 @@ NEURAL_CONFIG_POOL = {
         "random_seed": tune.randint(1, 20),
     },
 
+}
+
+
+def mlp_config_sampler(input_size: int) -> Callable[[optuna.Trial], dict]:
+    """Create config sampler for MLP model."""
+
+    def sampler(trial: optuna.Trial) -> dict:
+        return {
+            "input_size": trial.suggest_categorical("input_size", [input_size, input_size * 2]),
+            "hidden_size": trial.suggest_categorical("hidden_size", [64, 128, 256, 512, 1024]),
+            "num_layers": trial.suggest_int("num_layers", 2, 6),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True),
+            "scaler_type": trial.suggest_categorical("scaler_type", [None, "robust", "standard"]),
+            "max_steps": trial.suggest_categorical("max_steps", [500, 1000, 2000, 5000]),
+            "start_padding_enabled": trial.suggest_categorical("start_padding_enabled", [True, False]),
+            "batch_size": trial.suggest_categorical("batch_size", [32, 64, 128, 256]),
+            "windows_batch_size": trial.suggest_categorical("windows_batch_size", [128, 256, 512, 1024]),
+            "random_seed": trial.suggest_int("random_seed", 1, 20),
+        }
+
+    return sampler
+
+
+def nhits_config_sampler(input_size: int) -> Callable[[optuna.Trial], dict]:
+    """Create config sampler for NHITS model."""
+
+    def sampler(trial: optuna.Trial) -> dict:
+        return {
+            "input_size": trial.suggest_categorical("input_size", [input_size, input_size * 2]),
+            "n_pool_kernel_size": trial.suggest_categorical("n_pool_kernel_size", [
+                [2, 2, 1], [3, 2, 1], [6, 2, 1], [8, 4, 1],
+                [1, 1, 1], [2, 2, 2], [4, 4, 4], [24, 8, 2], [16, 8, 1]
+            ]),
+            "n_freq_downsample": trial.suggest_categorical("n_freq_downsample", [
+                [168, 24, 1], [24, 12, 1], [60, 8, 1], [40, 20, 1],
+                [6, 2, 1], [24, 8, 2], [1, 1, 1],
+            ]),
+            "mlp_units": trial.suggest_categorical("mlp_units", [
+                3 * [[64, 64]], 3 * [[128, 128]], 3 * [[256, 256]], 3 * [[512, 512]],
+            ]),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True),
+            "scaler_type": trial.suggest_categorical("scaler_type", [None, "robust", "revin", "standard"]),
+            "max_steps": trial.suggest_int("max_steps", 500, 2000, step=100),
+            "pooling_mode": trial.suggest_categorical("pooling_mode", ['MaxPool1d', 'AvgPool1d']),
+            "interpolation_mode": trial.suggest_categorical("interpolation_mode", ['linear', 'nearest', 'cubic']),
+            "start_padding_enabled": trial.suggest_categorical("start_padding_enabled", [True, False]),
+            "dropout_prob_theta": trial.suggest_categorical("dropout_prob_theta", [0.0, 0.1, 0.2]),
+            "batch_size": trial.suggest_categorical("batch_size", [32, 64, 128, 256]),
+            "windows_batch_size": trial.suggest_categorical("windows_batch_size", [128, 256, 512, 1024]),
+            "random_seed": trial.suggest_int("random_seed", 1, 20),
+        }
+
+    return sampler
+
+
+def patchtst_config_sampler(input_size: int) -> Callable[[optuna.Trial], dict]:
+    """Create config sampler for PatchTST model."""
+
+    def sampler(trial: optuna.Trial) -> dict:
+        return {
+            "input_size": trial.suggest_categorical("input_size", [input_size, input_size * 2, input_size * 3]),
+            "hidden_size": trial.suggest_categorical("hidden_size", [16, 32, 128, 256]),
+            "linear_hidden_size": trial.suggest_categorical("linear_hidden_size", [64, 128, 256]),
+            "n_heads": trial.suggest_categorical("n_heads", [2, 4, 8, 16]),
+            "encoder_layers": trial.suggest_categorical("encoder_layers", [1, 2, 3]),
+            "patch_len": trial.suggest_categorical("patch_len", [16, 24]),
+            "stride": trial.suggest_categorical("stride", [2, 4, 8]),
+            "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True),
+            "scaler_type": trial.suggest_categorical("scaler_type", [None, "robust", "standard"]),
+            "revin": trial.suggest_categorical("revin", [False, True]),
+            "max_steps": trial.suggest_categorical("max_steps", [500, 1000, 2000, 5000]),
+            "activation": trial.suggest_categorical("activation", ["relu", "gelu"]),
+            "res_attention": trial.suggest_categorical("res_attention", [True, False]),
+            "batch_normalization": trial.suggest_categorical("batch_normalization", [True, False]),
+            "learn_pos_embed": trial.suggest_categorical("learn_pos_embed", [True, False]),
+            "start_padding_enabled": trial.suggest_categorical("start_padding_enabled", [True, False]),
+            "batch_size": trial.suggest_categorical("batch_size", [32, 64, 128, 256]),
+            "windows_batch_size": trial.suggest_categorical("windows_batch_size", [128, 256, 512]),
+            "random_seed": trial.suggest_int("random_seed", 1, 20),
+        }
+
+    return sampler
+
+
+CONFIG_SAMPLERS = {
+    'MLP': mlp_config_sampler,
+    'NHITS': nhits_config_sampler,
+    'PatchTST': patchtst_config_sampler,
 }

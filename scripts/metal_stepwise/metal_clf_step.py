@@ -7,6 +7,7 @@ from sklearn.model_selection import LeaveOneGroupOut
 
 from src.workflows.metadata_utils import read_all_metadata, build_meta_xy
 from src.weightcast.learner_classifier import CatBoostAUCClassifier
+from src.workflows.cb_config import CATBOOST_CONFIGS_CLF
 
 model_name = 'PatchTST'
 results_dir = Path('./assets/results_cv')
@@ -24,13 +25,14 @@ steps.append(-1)
 def run_logo_cv_for_step(
         metadata: pd.DataFrame,
         step: int,
+        model_name: str,
 ) -> dict[str, float]:
     """Run leave-one-dataset-out CV for classification at a given training step."""
     df_step = metadata.query(f'step == {step}').reset_index(drop=True)
     # if step != -1:
-    #     df_step = metadata.query(f'step <= {step}').reset_index(drop=True)
+    #     df_step = metadata.query(f'step <= {step}').reset_index(drop=True).copy()
     # else:
-    #     df_step = metadata
+    #     df_step = metadata.copy()
 
     if df_step.empty:
         return {
@@ -57,10 +59,12 @@ def run_logo_cv_for_step(
     fold_briers: list[float] = []
 
     for train_idx, test_idx in logo.split(X, y, groups):
+        held_out = groups.iloc[test_idx[0]]
         clf = CatBoostAUCClassifier(
-            calibrate=True,
+            calibrate=False,
             calibration_method='platt',
             cal_size=0.1,
+            catboost_params=CATBOOST_CONFIGS_CLF[model_name][held_out],
         )
         clf.fit(X.iloc[train_idx], y[train_idx])
 
@@ -88,6 +92,7 @@ for step in steps:
     metrics = run_logo_cv_for_step(
         metadata,
         step=step,
+        model_name=model_name
     )
     results.append(metrics)
 

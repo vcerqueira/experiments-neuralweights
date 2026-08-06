@@ -11,8 +11,10 @@ from sklearn.model_selection import LeaveOneGroupOut
 
 from src.workflows.metadata_utils import read_all_metadata, corr_coef, build_meta_xy
 from src.weightcast.learner_regressor import CatBoostRegressionModel
+from src.workflows.cb_config import CATBOOST_CONFIGS_REG
 
-model = 'NHITS'
+
+model = 'PatchTST'
 results_dir = Path('./assets/results_cv')
 PERFORMANCE_DIFF = True
 Y_CLIP = (-2.5, 2.5)
@@ -48,7 +50,10 @@ for train_idx, test_idx in logo.split(X, y, groups):
     y_tr = y.iloc[train_idx].to_numpy()
     y_ts = y.iloc[test_idx].to_numpy()
 
-    reg = CatBoostRegressionModel(conformal=True, conformal_cal_size=0.1)
+    reg = CatBoostRegressionModel(conformal=True,
+                                  optimize=False,
+                                  catboost_params=CATBOOST_CONFIGS_REG[model][held_out],
+                                  conformal_cal_size=0.01)
     reg.fit(X.iloc[train_idx], y_tr)
 
     preds = reg.predict(X.iloc[test_idx])

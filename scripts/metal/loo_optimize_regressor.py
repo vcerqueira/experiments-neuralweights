@@ -4,7 +4,7 @@ from sklearn.model_selection import LeaveOneGroupOut
 from src.workflows.metadata_utils import read_all_metadata, build_meta_xy
 from src.weightcast.learner_regressor import CatBoostRegressionModel
 
-MODEL_NAME = 'MLP'
+MODEL_NAME = 'PatchTST'
 N_TRIALS = 50
 PERFORMANCE_DIFF = True
 Y_CLIP = (-2.5, 2.5)

@@ -17,15 +17,24 @@ ArrayLike = Union[pd.DataFrame, pd.Series, np.ndarray]
 
 
 class ConformalPredictiveDistribution:
-    """Split conformal predictive distribution from calibration residuals."""
+    """Split conformal predictive distribution from calibration residuals.
+
+    Exceedance/quantile computations avoid materializing the full
+    (n_points × n_cal) predictive-atom matrix, which OOMs on large datasets.
+    """
 
     def __init__(self, residuals: np.ndarray):
         self.residuals_ = np.asarray(residuals, dtype=float).ravel()
         if self.residuals_.size == 0:
             raise ValueError("Calibration residuals must be non-empty.")
+        self._residuals_sorted = np.sort(self.residuals_)
 
     def predictive_samples(self, y_hat: ArrayLike) -> np.ndarray:
-        """Return all conformal predictive atoms y_hat + r_j for each point."""
+        """Return all conformal predictive atoms y_hat + r_j for each point.
+
+        Warning: allocates an (n_points × n_cal) array. Prefer prob_exceeds /
+        quantile for large n.
+        """
         y_arr = np.asarray(y_hat, dtype=float).ravel()
         return y_arr[:, None] + self.residuals_[None, :]
 
@@ -33,28 +42,35 @@ class ConformalPredictiveDistribution:
         """Empirical predictive CDF F(t) = P(Y <= t | X) at each grid point."""
         y_arr = np.asarray(y_hat, dtype=float).ravel()
         grid = np.asarray(y_grid, dtype=float).ravel()
-        samples = self.predictive_samples(y_arr)
         n_cal = self.residuals_.size
-        return (samples[:, None, :] <= grid[None, :, None]).sum(axis=2) / (n_cal + 1)
+        # For each (point, grid_t): count residuals <= t - y_hat
+        # cutoffs shape: (n_points, n_grid)
+        cutoffs = grid[None, :] - y_arr[:, None]
+        n_le = np.searchsorted(self._residuals_sorted, cutoffs, side='right')
+        return n_le / (n_cal + 1)
 
     def prob_exceeds(self, y_hat: ArrayLike, threshold: float) -> np.ndarray:
-        """P(Y > threshold | X), e.g. P(MASE > 0.13)."""
+        """P(Y > threshold | X), e.g. P(MASE > 0.13).
+
+        Uses sorted residuals + binary search: O(n_cal log n_cal + n log n_cal)
+        memory/time instead of O(n × n_cal).
+        """
         y_arr = np.asarray(y_hat, dtype=float).ravel()
-        samples = self.predictive_samples(y_arr)
         n_cal = self.residuals_.size
-        return (samples > threshold).sum(axis=1) / (n_cal + 1)
+        # y_hat + r > threshold  <=>  r > threshold - y_hat
+        cutoffs = threshold - y_arr
+        n_le = np.searchsorted(self._residuals_sorted, cutoffs, side='right')
+        return (n_cal - n_le) / (n_cal + 1)
 
     def quantile(self, y_hat: ArrayLike, q: float) -> np.ndarray:
         """Quantile of the conformal predictive distribution."""
         if not 0.0 < q < 1.0:
             raise ValueError("`q` must be between 0 and 1.")
         y_arr = np.asarray(y_hat, dtype=float).ravel()
-        samples = np.sort(self.predictive_samples(y_arr), axis=1)
         n_cal = self.residuals_.size
         idx = np.ceil(q * (n_cal + 1) - 1).astype(int)
         idx = np.clip(idx, 0, n_cal - 1)
-        row_idx = np.arange(len(y_arr))
-        return samples[row_idx, idx]
+        return y_arr + self._residuals_sorted[idx]
 
 
 class CatBoostRegressionModel:
@@ -331,19 +347,6 @@ class CatBoostRegressionModel:
 
     def _default_params(self) -> dict[str, Any]:
         return {
-            'loss_function': 'RMSE',
-            'eval_metric': 'RMSE',
-            'verbose': False,
-            'allow_writing_files': False,
-            'random_seed': 42,
-            'depth': 4,
-            'learning_rate': 0.29796039491167264,
-            'l2_leaf_reg': 1.7551585658181852,
-            'bagging_temperature': 0.9102608885378489,
-            'random_strength': 8.97550269491597,
-            'border_count': 68,
-            'subsample': 0.8703838296422213,
-            'iterations': 904,
             **self.catboost_params,
         }
 

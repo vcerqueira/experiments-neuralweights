@@ -8,6 +8,7 @@ from sklearn.model_selection import LeaveOneGroupOut
 
 from src.workflows.metadata_utils import read_all_metadata, build_meta_xy
 from src.weightcast.learner_classifier import CatBoostAUCClassifier
+from src.workflows.cb_config import CATBOOST_CONFIGS_CLF
 
 model = 'PatchTST'
 results_dir = Path('./assets/results_cv')
@@ -15,7 +16,7 @@ results_dir = Path('./assets/results_cv')
 metadata, category_mappings = read_all_metadata(
     './assets', model,
     processed_file=f'./assets/metadata_{model}.csv',
-    sample_n=10000
+    # sample_n=200000
 )
 
 data = build_meta_xy(metadata, task="classification", use_step_as_feature=True)
@@ -34,9 +35,10 @@ for train_idx, test_idx in logo.split(X, y, groups):
     print(held_out)
 
     clf = CatBoostAUCClassifier(calibrate=False,
-                                optimize=True,
+                                optimize=False,
                                 calibration_method='platt',
-                                cal_size=0.15)
+                                cal_size=0.15,
+                                catboost_params=CATBOOST_CONFIGS_CLF[model][held_out],)
 
     clf.fit(X.iloc[train_idx], y.iloc[train_idx])
 

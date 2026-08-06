@@ -241,18 +241,6 @@ class CatBoostAUCClassifier:
 
     def _default_params(self) -> dict[str, Any]:
         return {
-            'loss_function': 'Logloss',
-            'eval_metric': 'AUC',
-            'verbose': False,
-            'allow_writing_files': False,
-            'depth': 9,
-            'learning_rate': 0.21557103267404404,
-            'l2_leaf_reg': 2.60075265467506,
-            'bagging_temperature': 0.17861251886208518,
-            'random_strength': 0.40655745710716007,
-            'border_count': 107,
-            'subsample': 0.7510803400616529,
-            'iterations': 931,
             "random_seed": self.random_state,
             **self.catboost_params,
         }

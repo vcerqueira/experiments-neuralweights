@@ -11,11 +11,12 @@ from sklearn.model_selection import LeaveOneGroupOut
 
 from src.workflows.metadata_utils import read_all_metadata, build_meta_xy, corr_coef
 from src.weightcast.learner_regressor import CatBoostRegressionModel
+from src.workflows.cb_config import CATBOOST_CONFIGS_REG
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-model_name = 'MLP'
+model_name = 'PatchTST'
 results_dir = Path('./assets/results_cv')
 plot_path = Path('./assets/outputs') / f'metal_reg_step_{model_name}.pdf'
 
@@ -34,6 +35,7 @@ steps.append(-1)
 def run_logo_cv_for_step(
         metadata: pd.DataFrame,
         step: int,
+        model_name: str,
         performance_diff: bool = True,
         y_clip: tuple[float, float] | None = None,
 ) -> dict[str, float]:
@@ -81,6 +83,7 @@ def run_logo_cv_for_step(
             conformal=True,
             conformal_cal_size=0.1,
             calibration_method="platt",
+            catboost_params=CATBOOST_CONFIGS_REG[model_name][held_out],
         )
         reg.fit(X.iloc[train_idx], y_tr)
 
@@ -122,6 +125,7 @@ for step in steps:
         step=step,
         performance_diff=PERFORMANCE_DIFF,
         y_clip=Y_CLIP,
+        model_name=model_name,
     )
     results.append(metrics)
     print(f"  nMAE = {metrics['nmae']:.3f}, AUC = {metrics['auc_exc']:.3f}, "

@@ -15,12 +15,10 @@ results_dir = Path('./assets/results_cv')
 metadata, category_mappings = read_all_metadata(
     './assets', model,
     processed_file=f'./assets/metadata_{model}.csv',
-    # sample_n=20000
+    sample_n=10000
 )
 
-data = build_meta_xy(metadata,
-                     task="classification",
-                     use_step_as_feature=True)
+data = build_meta_xy(metadata, task="classification", use_step_as_feature=True)
 
 X = data.X
 y = pd.Series(data.y)
@@ -35,7 +33,10 @@ for train_idx, test_idx in logo.split(X, y, groups):
     held_out = groups.iloc[test_idx[0]]
     print(held_out)
 
-    clf = CatBoostAUCClassifier(calibrate=True, calibration_method='platt', cal_size=0.15)
+    clf = CatBoostAUCClassifier(calibrate=False,
+                                optimize=True,
+                                calibration_method='platt',
+                                cal_size=0.15)
 
     clf.fit(X.iloc[train_idx], y.iloc[train_idx])
 

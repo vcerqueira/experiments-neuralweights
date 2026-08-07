@@ -24,7 +24,7 @@ EXCEEDANCE_THRESHOLD = 0.0  # regressor: P(MASE_diff > this)
 N_TRIALS = 30
 CB_N_STEPS = 100
 MIN_CB_N_STEPS = 400
-MODEL_NAME = 'PatchTST'
+MODEL_NAME = 'NHITS'
 OUTPUT_DIR = Path('./assets/results_search')
 
 MODE = 'transfer' if DO_TRANSFER else 'ind'

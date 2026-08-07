@@ -14,10 +14,13 @@ from src.workflows.metadata_utils import build_meta_xy
 from src.weightcast.callbacks import WeightcastClassifier, WeightcastRegressor
 from src.weightcast.learner_classifier import CatBoostAUCClassifier
 from src.weightcast.learner_regressor import CatBoostRegressionModel
+from src.workflows.cb_config import CATBOOST_CONFIGS_CLF, CATBOOST_CONFIGS_REG
 
 
 def train_meta_classifier(
         df: pd.DataFrame,
+        model_name: str,
+        dataset_name: str,
         calibrate: bool = True,
         cal_size: float = 0.2,
 ) -> tuple[CatBoostAUCClassifier, list[str]]:
@@ -37,6 +40,7 @@ def train_meta_classifier(
         calibrate=calibrate,
         calibration_method="platt",
         cal_size=cal_size,
+        catboost_params=CATBOOST_CONFIGS_CLF[model_name][dataset_name]
     )
     clf.fit(data.X, data.y)
 
@@ -45,6 +49,8 @@ def train_meta_classifier(
 
 def train_meta_regressor(
         df: pd.DataFrame,
+        model_name: str,
+        dataset_name: str,
         conformal_cal_size: float = 0.025,
         y_clip: tuple[float, float] = (-2.5, 2.5),
 ) -> tuple[CatBoostRegressionModel, list[str]]:
@@ -70,6 +76,7 @@ def train_meta_regressor(
         conformal=True,
         conformal_cal_size=conformal_cal_size,
         calibration_method="isotonic",
+        catboost_params=CATBOOST_CONFIGS_REG[model_name][dataset_name]
     )
     reg.fit(data.X, data.y, calibrate_threshold=None)
 

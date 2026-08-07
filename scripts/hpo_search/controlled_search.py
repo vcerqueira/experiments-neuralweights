@@ -19,12 +19,12 @@ pd.set_option('display.max_rows', None)
 
 DO_TRANSFER = True
 USE_REGRESSOR = False
-STOPPING_THRESHOLD = 0.70
+STOPPING_THRESHOLD = 0.50
 EXCEEDANCE_THRESHOLD = 0.0  # regressor: P(MASE_diff > this)
 N_TRIALS = 30
 CB_N_STEPS = 100
-MIN_CB_N_STEPS = 1
-MODEL_NAME = 'MLP'
+MIN_CB_N_STEPS = 400
+MODEL_NAME = 'PatchTST'
 OUTPUT_DIR = Path('./assets/results_search')
 
 MODE = 'transfer' if DO_TRANSFER else 'ind'
@@ -62,9 +62,14 @@ for i, target_dataset in enumerate(all_datasets):
     # Train meta-model on all datasets except target (LOO)
     meta_train = metadata[metadata['dataset'] != target_dataset].reset_index(drop=True)
     if USE_REGRESSOR:
-        meta_model, feature_columns = train_meta_regressor(meta_train)
+        meta_model, feature_columns = train_meta_regressor(meta_train,
+                                                           model_name=MODEL_NAME,
+                                                           dataset_name=target_dataset)
     else:
-        meta_model, feature_columns = train_meta_classifier(meta_train, calibrate=True)
+        meta_model, feature_columns = train_meta_classifier(meta_train,
+                                                            calibrate=False,
+                                                            model_name=MODEL_NAME,
+                                                            dataset_name=target_dataset)
 
     config_list = [cfg.copy() for cfg in config_list_master]
 

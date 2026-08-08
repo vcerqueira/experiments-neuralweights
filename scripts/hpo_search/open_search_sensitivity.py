@@ -51,7 +51,7 @@ for i, target_dataset in enumerate(all_datasets):
     print("\n" + "=" * 70)
     print(f"[{i + 1}/{len(all_datasets)}] TARGET DATASET: {target_dataset}")
 
-    train, _, _, test, horizon, n_lags, freq, seas_len = load_dataset_splits(
+    _, train, _, _, test, horizon, n_lags, freq, seas_len = load_dataset_splits(
         target_dataset, get_valid=True
     )
 

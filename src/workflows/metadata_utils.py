@@ -151,7 +151,7 @@ def load_dataset_splits(target, get_valid: bool = False):
     train_in = ChronosDataset.prune_uids_by_size(train_in, min_n_instances=2 * (n_lags + horizon))
     train_full = ChronosDataset.prune_uids_by_size(train_full, min_n_instances=2 * (n_lags + horizon))
 
-    return train_full, train_in, valid, test, horizon, n_lags, freq, seas_len
+    return df, train_full, train_in, valid, test, horizon, n_lags, freq, seas_len
 
 
 class MetadataReader:

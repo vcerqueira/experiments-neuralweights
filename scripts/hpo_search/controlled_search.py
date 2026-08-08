@@ -17,14 +17,14 @@ from src.workflows.metadata_utils import read_all_metadata, load_dataset_splits
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-DO_TRANSFER = True
-USE_REGRESSOR = True
-STOPPING_THRESHOLD = 0.50
+DO_TRANSFER = False
+USE_REGRESSOR = False
+STOPPING_THRESHOLD = 0.75
 EXCEEDANCE_THRESHOLD = 0.0  # regressor: P(MASE_diff > this)
 N_TRIALS = 30
 CB_N_STEPS = 100
 MIN_CB_N_STEPS = 400
-MODEL_NAME = 'NHITS'
+MODEL_NAME = 'PatchTST'
 OUTPUT_DIR = Path('./assets/results_search')
 
 MODE = 'transfer' if DO_TRANSFER else 'ind'

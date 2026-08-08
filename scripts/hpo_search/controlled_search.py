@@ -18,7 +18,7 @@ pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
 DO_TRANSFER = True
-USE_REGRESSOR = False
+USE_REGRESSOR = True
 STOPPING_THRESHOLD = 0.50
 EXCEEDANCE_THRESHOLD = 0.0  # regressor: P(MASE_diff > this)
 N_TRIALS = 30

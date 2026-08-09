@@ -17,9 +17,9 @@ from src.workflows.metadata_utils import read_all_metadata, load_dataset_splits
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
-DO_TRANSFER = True
+DO_TRANSFER = False
 USE_REGRESSOR = False
-STOPPING_THRESHOLD = 0.75
+STOPPING_THRESHOLD = 0.95
 EXCEEDANCE_THRESHOLD = 0.0  # regressor: P(MASE_diff > this)
 N_TRIALS = 30
 CB_N_STEPS = 100
@@ -37,6 +37,8 @@ metadata, category_mappings = read_all_metadata(
 )
 
 all_datasets = sorted(metadata['dataset'].unique().tolist())
+# all_datasets = [all_datasets[1]]
+
 
 config_pool = NEURAL_CONFIG_POOL[MODEL_NAME]
 config_list_master = ConfigSampler.generate_samples(

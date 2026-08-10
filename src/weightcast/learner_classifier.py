@@ -1,3 +1,4 @@
+"""Binary meta-classifier for Weightcast (P(MASE > baseline))."""
 from typing import Any, Literal, Optional, Union
 
 import numpy as np
@@ -14,7 +15,23 @@ CalibrationMethod = Literal["isotonic", "platt"]
 
 
 class CatBoostAUCClassifier:
-    """Binary CatBoost classifier with optional Optuna tuning and probability calibration."""
+    """Binary CatBoost classifier with optional Optuna tuning and probability calibration.
+
+    Used as the Weightcast meta-model when predicting whether a training run
+    will underperform the seasonal-naive MASE baseline.
+
+    Args:
+        optimize: If True, run Optuna HPO before fitting the final model.
+        calibrate: If True, fit Platt/isotonic calibration on a holdout set.
+        calibration_method: ``'platt'`` or ``'isotonic'``.
+        n_trials: Optuna trials when ``optimize=True``.
+        val_size: Holdout fraction for Optuna objective evaluation.
+        cal_size: Holdout fraction for probability calibration.
+        random_state: RNG seed for splits and CatBoost.
+        early_stopping_rounds: CatBoost early stopping during Optuna trials.
+        catboost_params: Override / extend default CatBoost hyperparameters.
+        optuna_seed: Sampler seed (defaults to ``random_state``).
+    """
 
     def __init__(
             self,

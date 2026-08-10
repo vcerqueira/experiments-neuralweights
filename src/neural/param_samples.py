@@ -1,3 +1,4 @@
+"""Deterministic random sampling from Ray Tune-style config pools."""
 import random
 import hashlib
 import json
@@ -10,18 +11,12 @@ from src.config import SEED, N_SAMPLES
 
 
 class ConfigSampler:
-    # from ray import tune
-    #
-    # config_space_ = {
-    #     "n_pool_kernel_size": tune.choice([2, 3, 5]),
-    #     "learning_rate": tune.loguniform(1e-4, 1e-1),
-    #     "batch_size": tune.choice([16, 32, 64]),
-    #     "activation": "relu"
-    # }
-    #
-    # sample_list_ = ConfigSampler.generate_samples(config_space_, num_samples=4)
-    #
-    # df = pd.DataFrame(sample_list_).set_index('config_id')
+    """Sample hyperparameter configs and assign stable ``config_id`` hashes.
+
+    Example:
+        >>> from src.neural.config_pool import NEURAL_CONFIG_POOL
+        >>> samples = ConfigSampler.generate_samples(NEURAL_CONFIG_POOL['MLP'], num_samples=10)
+    """
 
     BAD_CONFIGS = []
 
@@ -32,11 +27,18 @@ class ConfigSampler:
                          random_state: int = SEED,
                          remove_bad_configs: bool = True,
                          return_df: bool = False):
+        """Draw ``num_samples`` uninformed random configs from ``config_pool``.
 
-        """
-        Uninformed Random Sampling
-        """
+        Args:
+            config_pool: Mapping of param name -> Ray Tune sampleable / constant.
+            num_samples: Number of configs to draw.
+            random_state: Seed for reproducibility.
+            remove_bad_configs: Drop entries listed in ``BAD_CONFIGS``.
+            return_df: If True, return a DataFrame indexed by ``config_id``.
 
+        Returns:
+            List of config dicts (each with ``config_id``), or a DataFrame.
+        """
         cls.set_seeds(random_state)
 
         sample_list = []

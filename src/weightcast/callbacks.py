@@ -1,3 +1,8 @@
+"""PyTorch Lightning callbacks for Weightcast early stopping.
+
+During training, periodically extract WeightWatcher features, score them with
+a pre-trained meta-model, and stop if P(underperform baseline) is high.
+"""
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 
@@ -20,6 +25,11 @@ class WeightcastCallback(Callback, ABC):
 
     Subclasses must implement `_predict_exceedance` to define how the
     meta-model produces exceedance probabilities.
+
+    Attributes:
+        predictions: Log of (step, prob_exceed, threshold) at each check.
+        stopped_early: Whether training was stopped by this callback.
+        stop_step: Global step at which stopping occurred (if any).
     """
 
     MIN_STEPS_BEFORE_STOPPING = 50
@@ -35,6 +45,16 @@ class WeightcastCallback(Callback, ABC):
             min_steps: int = MIN_STEPS_BEFORE_STOPPING,
             verbose: bool = True,
     ):
+        """
+        Args:
+            feature_columns: Feature names expected by the meta-model.
+            config_data: Hyperparameters of the trial being trained.
+            category_mappings: Encodings for categorical config fields.
+            stopping_threshold: Stop when P(exceed) > this value.
+            every_n_steps: Evaluate the meta-model every N optimizer steps.
+            min_steps: Burn-in before early stopping is allowed.
+            verbose: Print P(exceed) at each check.
+        """
         super().__init__()
         self.name = self._callback_name
         self.feature_columns = feature_columns

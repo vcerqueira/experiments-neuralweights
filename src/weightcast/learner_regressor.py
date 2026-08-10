@@ -1,4 +1,5 @@
-from typing import Any, Optional, Union
+"""Regression meta-model for Weightcast with conformal exceedance probabilities."""
+from typing import Any, Optional, Union, Literal
 
 import numpy as np
 import optuna
@@ -8,8 +9,6 @@ from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-
-from typing import Literal
 
 CalibrationMethod = Literal["isotonic", "platt", "none"]
 
@@ -74,7 +73,25 @@ class ConformalPredictiveDistribution:
 
 
 class CatBoostRegressionModel:
-    """CatBoost regressor with optional Optuna tuning and conformal predictive distributions."""
+    """CatBoost regressor with optional Optuna tuning and conformal predictive distributions.
+
+    When ``conformal=True``, a holdout set of residuals forms a split conformal
+    predictive distribution. ``prob_exceeds`` then estimates
+    P(Y > threshold | X), optionally recalibrated with isotonic or Platt scaling.
+
+    Args:
+        optimize: If True, run Optuna HPO before fitting the final model.
+        conformal: If True, reserve a calibration set for conformal residuals.
+        calibration_method: Default method for ``prob_exceeds``
+            (``'isotonic'``, ``'platt'``, or ``'none'``).
+        n_trials: Optuna trials when ``optimize=True``.
+        val_size: Holdout fraction for Optuna objective evaluation.
+        conformal_cal_size: Fraction of data reserved for conformal residuals.
+        random_state: RNG seed for splits and CatBoost.
+        early_stopping_rounds: CatBoost early stopping during Optuna trials.
+        catboost_params: Override / extend default CatBoost hyperparameters.
+        optuna_seed: Sampler seed (defaults to ``random_state``).
+    """
 
     def __init__(
             self,

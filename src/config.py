@@ -1,3 +1,15 @@
+"""Global experiment settings shared across scripts.
+
+Attributes:
+    DRY_RUN: If True, use tiny sample sizes / epoch limits for debugging.
+    RESULTS_DIR: Default directory for miscellaneous outputs.
+    SEED: Global RNG seed for config sampling and reproducibility.
+    CB_N_STEPS: Default WeightWatcher / Weightcast check interval (optimizer steps).
+    ENGINE: Lightning accelerator (`'mps'`, `'gpu'`, or `'cpu'`).
+    N_SAMPLES: Number of hyperparameter configs to sample from each pool.
+    MAX_SAMPLES: Cap used in metadata collection loops.
+    DATASET_MAPPING: Short display names for tables and plots.
+"""
 from pathlib import Path
 
 DRY_RUN = False
@@ -6,7 +18,7 @@ RESULTS_DIR = Path().resolve() / 'results'
 
 SEED = 1108
 CB_N_STEPS = 10
-ENGINE = 'mps' # 'gpu' for CUDA
+ENGINE = 'mps'  # 'gpu' for CUDA
 if DRY_RUN:
     LIMIT_EPOCHS = True
     N_SAMPLES = 100

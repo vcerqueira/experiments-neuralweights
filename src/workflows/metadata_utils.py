@@ -1,3 +1,4 @@
+"""Dataset loading, metadata aggregation, and meta-learning (X, y) construction."""
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional
@@ -10,7 +11,16 @@ from src.loaders import ChronosDataset, LongHorizonDatasetR
 
 @dataclass
 class MetaLearningData:
-    """Container for meta-learning X, y pairs and related data."""
+    """Container for meta-learning design matrix and targets.
+
+    Attributes:
+        X: Feature matrix (WeightWatcher stats + hyperparameters [+ step]).
+        y: Binary exceedance labels or continuous performance targets.
+        groups: Dataset ids for leave-one-group-out CV.
+        feature_columns: Ordered feature names used by the meta-model.
+        task: ``'classification'`` or ``'regression'``.
+        mase_sn_by_dataset: Per-dataset seasonal-naive MASE (if available).
+    """
     X: pd.DataFrame
     y: np.ndarray
     groups: pd.Series
@@ -131,6 +141,16 @@ def encode_cats(
 
 
 def load_dataset_splits(target, get_valid: bool = False):
+    """Load a dataset and return train / optional valid / test splits.
+
+    Args:
+        target: Dataset name (e.g. ``'monash_m1_monthly'``).
+        get_valid: If True, hold out a validation window from ``train_full``.
+
+    Returns:
+        Tuple ``(df, train_full, train_in, valid, test, horizon, n_lags, freq, seas_len)``.
+        When ``get_valid=False``, ``valid`` is empty and ``train_in == train_full``.
+    """
     if target in ChronosDataset.FREQUENCY_MAP_DATASETS:
         df, horizon, n_lags, freq, seas_len = ChronosDataset.load_everything(target)
 

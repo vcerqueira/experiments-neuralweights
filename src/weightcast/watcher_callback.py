@@ -1,24 +1,27 @@
+"""Collect WeightWatcher layer statistics during NeuralForecast training.
+
+Used offline for metadata collection (pre_metadata_collection scripts).
+For online early stopping, see ``src.weightcast.callbacks``.
+"""
 import weightwatcher as ww
 from pytorch_lightning.callbacks import Callback
 
 
 class WeightWatcherCallback(Callback):
-    """Run WeightWatcher every `every_n_steps` optimizer steps."""
+    """Snapshot WeightWatcher summary/details every ``every_n_steps`` steps.
 
+    Also records snapshots at train start and train end.
 
-    """
-        
-    import weightwatcher as ww
-    
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.max_rows', None)
-    
-    watcher = ww.WeightWatcher(model=nf.models[0])
-    details = watcher.analyze(plot=False)
-    summary = watcher.get_summary(details)
-    print(pd.Series(summary))
-    print(details.T)
-    
+    Attributes:
+        summaries: List of (step-tagged) WeightWatcher summary dicts/Series.
+        details: List of (step-tagged) per-layer detail DataFrames.
+
+    Example:
+        >>> cb = WeightWatcherCallback(every_n_steps=100)
+        >>> model = MLP(..., callbacks=[cb])
+        >>> nf.fit(df)
+        >>> actual = WeightWatcherCallback.get_cb(nf)
+        >>> len(actual.details)
     """
 
     def __init__(self, every_n_steps: int = 10):
@@ -53,6 +56,7 @@ class WeightWatcherCallback(Callback):
 
     @staticmethod
     def _get_ww_data(pl_module, step: int):
+        """Run WeightWatcher.analyze and tag outputs with ``step``."""
         watcher = ww.WeightWatcher(model=pl_module)
         details = watcher.analyze(plot=False)
         summary = watcher.get_summary(details)
@@ -62,8 +66,13 @@ class WeightWatcherCallback(Callback):
         return summary, details
 
     @staticmethod
-    def get_cb(nf):
+    def get_cb(nf) -> "WeightWatcherCallback":
+        """Retrieve the callback from the first model in a fitted NeuralForecast.
+
+        NeuralForecast deep-copies callbacks, so use this after ``fit``.
+
         # todo this is getting the cb from the first model only
+        """
         all_cbs = nf.models[0].trainer_kwargs['callbacks']
         ww_cb = next(cb for cb in all_cbs if cb.name == "weightwatcher")
 

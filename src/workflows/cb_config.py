@@ -1,3 +1,9 @@
+"""Cached LOO-tuned CatBoost hyperparameters for Weightcast meta-models.
+
+Produced by ``scripts/metal/loo_optimize_{classifier,regressor}.py``.
+Keys: ``CATBOOST_CONFIGS_{CLF,REG}[model_name][held_out_dataset]``.
+"""
+
 CATBOOST_CONFIGS_CLF = {
     'MLP': {'monash_hospital': {'loss_function': 'Logloss', 'eval_metric': 'AUC', 'verbose': False,
                                 'allow_writing_files': False, 'depth': 10, 'learning_rate': 0.2223315967535431,

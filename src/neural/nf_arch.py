@@ -1,9 +1,12 @@
+"""Factory for NeuralForecast model instances used in experiments."""
 from typing import Optional, List, Dict
 
 from neuralforecast.models import (MLP, NHITS, PatchTST)
 
 
 class ModelsConfig:
+    """Create MLP / NHITS / PatchTST instances from sampled config dicts."""
+
     MODEL_CLASSES = {
         'MLP': MLP,
         'NHITS': NHITS,
@@ -23,7 +26,14 @@ class ModelsConfig:
                               limit_val_batches: Optional[int] = None,
                               callbacks: Optional[List] = None,
                               alias: Optional[str] = None, ):
+        """Build a NeuralForecast model from a config sample.
 
+        Resolves ``input_size_multiplier`` against ``input_size`` (n_lags),
+        injects accelerator / horizon / callbacks, and returns the model.
+
+        Note:
+            Mutates ``model_config`` by popping multiplier keys.
+        """
         input_multiplier = model_config.pop('input_size_multiplier')
 
         base_config = {'accelerator': engine,

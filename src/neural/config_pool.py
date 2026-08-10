@@ -1,3 +1,9 @@
+"""Hyperparameter search spaces for NeuralForecast architectures.
+
+``NEURAL_CONFIG_POOL`` uses Ray Tune distributions for offline random sampling
+(``ConfigSampler``). ``CONFIG_SAMPLERS`` exposes Optuna-compatible callables for
+AutoModel open search.
+"""
 from typing import Callable
 
 from ray import tune
@@ -255,6 +261,7 @@ def patchtst_config_sampler(input_size: int) -> Callable[[optuna.Trial], dict]:
     return sampler
 
 
+# Optuna config factories: CONFIG_SAMPLERS[model](input_size=n_lags) -> (trial) -> dict
 CONFIG_SAMPLERS = {
     'MLP': mlp_config_sampler,
     'NHITS': nhits_config_sampler,

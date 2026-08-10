@@ -1,9 +1,12 @@
+"""Base utilities for loading and splitting forecasting datasets."""
 from typing import Optional
 
 import pandas as pd
 
 
 class DatasetLoader:
+    """Abstract dataset loader with horizon / frequency helpers and train-test split."""
+
     DATASET_NAME = ''
 
     HORIZON_MAP = {}

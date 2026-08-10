@@ -1,3 +1,8 @@
+"""Controlled HPO utilities with Weightcast early stopping.
+
+Provides meta-model training helpers, a fixed-config-pool search loop
+(``run_hpo_search``), and test-set evaluation of the best retained configs.
+"""
 from functools import partial
 from typing import Union
 
@@ -28,6 +33,9 @@ def train_meta_classifier(
 
     Args:
         df: Training metadata (excluding target dataset).
+        model_name: Architecture key for cached CatBoost params
+            (``CATBOOST_CONFIGS_CLF``).
+        dataset_name: Held-out dataset key for LOO-tuned hyperparameters.
         calibrate: Whether to calibrate probabilities.
         cal_size: Fraction of data for calibration set.
 
@@ -58,6 +66,9 @@ def train_meta_regressor(
 
     Args:
         df: Training metadata (excluding target dataset).
+        model_name: Architecture key for cached CatBoost params
+            (``CATBOOST_CONFIGS_REG``).
+        dataset_name: Held-out dataset key for LOO-tuned hyperparameters.
         conformal_cal_size: Fraction of data for conformal calibration.
         y_clip: Min/max clipping for target variable.
 

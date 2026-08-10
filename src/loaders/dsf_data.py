@@ -1,3 +1,7 @@
+"""Loaders for DatasetsForecast long-horizon benchmarks (ETT, etc.).
+
+Requires ``DATA_DIR`` in the environment (via ``.env`` / ``python-dotenv``).
+"""
 import os
 from typing import Optional
 from pathlib import Path
@@ -9,17 +13,9 @@ from dotenv import load_dotenv
 from src.loaders.base import DatasetLoader
 
 
-# load_dotenv()
-# DATASET_PATH = Path(os.environ["DATA_DIR"])
-# ds, *_ = LongHorizon.load(directory=DATASET_PATH, group='Weather')
-# ds['unique_id'].value_counts()
-# print(ds)
-
-# ds, *_ = LongHorizonDatasetR.load_everything(group='ETTm1', resample_to='H')
-# ds['unique_id'].value_counts()
-
-
 class LongHorizonDataset(DatasetLoader):
+    """Long-horizon datasets from ``datasetsforecast.long_horizon``."""
+
     load_dotenv()
     DATASET_PATH = Path(os.environ["DATA_DIR"])
 
@@ -90,6 +86,7 @@ class LongHorizonDataset(DatasetLoader):
 
 
 class LongHorizonDatasetR(LongHorizonDataset):
+    """LongHorizon loader with optional resampling (e.g. to daily)."""
 
     @classmethod
     def load_everything(cls,
@@ -98,6 +95,7 @@ class LongHorizonDatasetR(LongHorizonDataset):
                         min_n_instances: Optional[int] = None,
                         sample_n_uid: Optional[int] = None,
                         **kwargs):
+        """Load and optionally resample a long-horizon group."""
         df, horizon, n_lags, freq, seas_len = (
             super().load_everything(group=group,
                                     min_n_instances=min_n_instances,

@@ -1,3 +1,9 @@
+"""Loaders for Hugging Face ``autogluon/chronos_datasets`` (Monash and related).
+
+See also:
+    - https://huggingface.co/datasets/autogluon/chronos_datasets
+    - https://github.com/autogluon/fev
+"""
 from typing import Optional
 
 import datasets
@@ -9,10 +15,7 @@ from src.loaders.base import DatasetLoader
 
 
 class ChronosDataset(DatasetLoader):
-    # https://github.com/autogluon/fev/blob/main/benchmarks/chronos_zeroshot/results/auto_arima.csv
-    # https://github.com/SalesforceAIResearch/gift-eval/blob/main/results/naive/all_results.csv
-    # https://huggingface.co/datasets/autogluon/chronos_datasets
-    # https://github.com/autogluon/fev
+    """Chronos / Monash-style datasets via Hugging Face datasets."""
 
     DATASET_NAME = 'CHRONOS'
     REPO_ID = 'autogluon/chronos_datasets'

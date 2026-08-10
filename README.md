@@ -124,6 +124,8 @@ During trial training, every `CB_N_STEPS` steps (after a minimum burn-in):
 
 Unlike Optuna pruners (which need within-study trial history), Weightcast uses **cross-dataset meta-knowledge** and can prune from the first trial.
 
+![Meta-model HPO application overview](sketch_hpo.png)
+
 ## Citation (TBD)
 
 ```bibtex

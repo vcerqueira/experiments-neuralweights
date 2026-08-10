@@ -113,7 +113,7 @@ Results: `assets/results_search/controlled_{search,test}_{MODEL}_{ind|transfer}_
 
 Overall training of the meta-model:
 
-![Meta-model training overview](assets/sketch.png)
+![Meta-model training overview](sketch.png)
 
 During trial training, every `CB_N_STEPS` steps (after a minimum burn-in):
 

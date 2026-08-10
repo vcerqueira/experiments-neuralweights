@@ -2,13 +2,11 @@ from pathlib import Path
 
 DRY_RUN = False
 
-# RESULTS_DIR = Path().resolve().parent.parent / 'hypertuning-files' / 'results-all-compiled'
-# RESULTS_DIR = Path().resolve().parent / 'results'
 RESULTS_DIR = Path().resolve() / 'results'
 
 SEED = 1108
 CB_N_STEPS = 10
-ENGINE = 'mps'
+ENGINE = 'mps' # 'gpu' for CUDA
 if DRY_RUN:
     LIMIT_EPOCHS = True
     N_SAMPLES = 100

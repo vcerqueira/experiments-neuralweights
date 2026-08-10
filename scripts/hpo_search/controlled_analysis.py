@@ -79,7 +79,7 @@ p_combined = (
         p9.ggplot(combined_metrics, p9.aes(x='metric', y='value', fill='model'))
         + p9.geom_bar(stat='identity', position='dodge', width=0.7)
         + p9.facet_wrap('~mode', ncol=2)
-        + p9.labs(x='', y='Value', fill='Model', title=f'{META_LABEL} Results')
+        + p9.labs(x='', y='Value', fill='Model', title='')
         + p9.scale_fill_manual(values=MODEL_COLORS)
         + p9.theme_538(base_family='Palatino', base_size=14)
         + p9.theme(
